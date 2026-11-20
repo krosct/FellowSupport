@@ -1,7 +1,8 @@
 """CLI do FellowSupport (argparse, stdlib). Execução: ``python -m app.adapters.cli.main <subcomando>``.
 
 Subcomandos: ``profiles``, ``tickets``, ``versions`` e ``generate`` (``--type`` com os quatro tipos ou ``all``;
-``--no-cache`` ignora o cache). As Etapas seguintes acrescentam ``compare`` etc.
+``--no-cache`` ignora o cache), ``history`` (tabela com filtros) e ``show <id>``. As Etapas seguintes acrescentam
+``compare`` etc.
 Códigos de saída: 0 sucesso · 1 erro de uso ou validação · 2 não encontrado · 3 provedor de LLM indisponível.
 """
 
@@ -15,7 +16,14 @@ import textwrap
 from collections.abc import Sequence
 from typing import NoReturn
 
-from app.adapters.cli.render import HASH_PREVIEW_CHARS, TEXT_WIDTH, render_output, render_run_header
+from app.adapters.cli.render import (
+    HASH_PREVIEW_CHARS,
+    TEXT_WIDTH,
+    render_history_table,
+    render_output,
+    render_run_header,
+    render_stored_run,
+)
 from app.container import Container, build_container
 from app.domain.errors import (
     DomainError,
@@ -27,6 +35,7 @@ from app.domain.errors import (
 )
 from app.domain.models import ALL_OPTION_VALUE, ContentType
 from app.services.generators import generate, generate_all
+from app.services.history import DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT, HistoryFilters, get_run, list_runs
 
 EXIT_OK = 0
 EXIT_USAGE = 1
@@ -81,6 +90,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-cache", action="store_true", help="ignora o cache: gera de novo e não lê nem grava o cache"
     )
     gen.add_argument("--json", action="store_true", help="saída em JSON")
+
+    history = sub.add_parser("history", help="lista as execuções salvas, da mais recente para a mais antiga")
+    history.add_argument("--customer", metavar="ID", help="só execuções deste perfil")
+    history.add_argument("--ticket", metavar="ID", help="só execuções deste ticket do catálogo")
+    history.add_argument(
+        "--type", dest="content_type", choices=[t.value for t in ContentType], help="só execuções deste tipo"
+    )
+    history.add_argument("--version", help="só execuções desta versão de prompt")
+    history.add_argument("--status", choices=["ok", "error"], help="só execuções com este status")
+    history.add_argument(
+        "--cache-key", metavar="CHAVE",
+        help="só execuções com esta chave de cache (ou o começo dela): as equivalentes entre si",
+    )
+    history.add_argument(
+        "--limit", type=int, default=DEFAULT_HISTORY_LIMIT, metavar="N",
+        help=f"máximo de execuções (1 a {MAX_HISTORY_LIMIT}; padrão {DEFAULT_HISTORY_LIMIT})",
+    )
+    history.add_argument("--json", action="store_true", help="saída em JSON")
+
+    show = sub.add_parser("show", help="mostra uma execução salva pelo id, como o generate a mostrou")
+    show.add_argument("run_id", metavar="ID", help="id da execução (veja o comando history)")
+    show.add_argument("--json", action="store_true", help="saída em JSON")
     return parser
 
 
@@ -203,12 +234,40 @@ def _cmd_generate(container: Container, args: argparse.Namespace) -> int | None:
     return None
 
 
+def _cmd_history(container: Container, args: argparse.Namespace) -> None:
+    """Lista as execuções salvas em tabela (ou JSON), aplicando os filtros do serviço de histórico."""
+    filters = HistoryFilters(
+        customer_id=args.customer,
+        ticket_id=args.ticket,
+        content_type=ContentType(args.content_type) if args.content_type else None,
+        prompt_version=args.version,
+        status=args.status,
+        cache_key=args.cache_key,
+    )
+    runs = list_runs(container.runs, filters, args.limit)
+    if args.json:
+        _dump([{"saved_path": s.saved_path, "run": s.record.model_dump(mode="json")} for s in runs])
+    else:
+        print(render_history_table(runs))
+
+
+def _cmd_show(container: Container, args: argparse.Namespace) -> None:
+    """Mostra uma execução salva com o mesmo renderizador do ``generate``."""
+    stored = get_run(container.runs, args.run_id)
+    if args.json:
+        _dump({"saved_path": stored.saved_path, "run": stored.record.model_dump(mode="json")})
+    else:
+        print(render_stored_run(stored))
+
+
 # Subcomando -> função que o executa.
 _COMMANDS = {
     "profiles": _cmd_profiles,
     "tickets": _cmd_tickets,
     "versions": _cmd_versions,
     "generate": _cmd_generate,
+    "history": _cmd_history,
+    "show": _cmd_show,
 }
 
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, field_validator
 
-from app.domain.models import ALL_OPTION_VALUE, ContentType, RunError, RunRecord
+from app.domain.models import ALL_OPTION_VALUE, ContentType, RunError, RunRecord, RunStatus
 from app.domain.prompting.registry import PromptVersion
 
 
@@ -54,6 +54,7 @@ class LimitsOut(BaseModel):
     """Limites que a interface precisa conhecer."""
 
     max_ticket_chars: int
+    history_limit: int  # limite padrão da listagem do histórico (``GET /api/runs``)
 
 
 class LlmInfoOut(BaseModel):
@@ -131,3 +132,35 @@ class GenerateAllOut(BaseModel):
     """Resposta de ``POST /api/generate`` com ``content_type: "all"``: um item por tipo, na ordem de ``ContentType``."""
 
     results: list[GenerateItemOut]
+
+
+class RunSummaryOut(BaseModel):
+    """Linha da listagem do histórico: o suficiente para a tabela, sem a saída nem as mensagens enviadas.
+
+    O registro completo (``GET /api/runs/{id}``) pode ter dezenas de KB; listar 50 deles inteiros seria pesado.
+    """
+
+    run_id: str
+    timestamp: str
+    status: RunStatus
+    customer_id: str
+    customer_name: str
+    ticket_id: str | None
+    ticket_title: str
+    content_type: ContentType
+    prompt_version: str
+    provider: str
+    model: str
+    model_used: str | None
+    cache_key: str | None
+    cache_hit: bool
+    source_run_id: str | None
+    attempts: int
+    latency_ms: int
+    error: RunError | None
+    saved_path: str
+
+
+class RunDetailOut(GenerateOut):
+    """Detalhe de uma execução do histórico: mesma forma de ``POST /api/generate`` (``saved_path`` e ``run``),
+    para o front reaproveitar o componente que já mostra um resultado."""

@@ -63,7 +63,20 @@ O Vite encaminha `/api` e `/healthz` para a porta 8000.
 .venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type all          # os quatro, em paralelo
 .venv/bin/python -m app.adapters.cli.main generate --customer bianca --text "A API devolve 500."
 .venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --no-cache      # ignora o cache
+.venv/bin/python -m app.adapters.cli.main history                      # execuções salvas, da mais recente à mais antiga
+.venv/bin/python -m app.adapters.cli.main history --customer marta --type diagnosis --status ok --limit 10
+.venv/bin/python -m app.adapters.cli.main history --cache-key a5d5dc913ffb   # execuções equivalentes (mesma chave de cache)
+.venv/bin/python -m app.adapters.cli.main show 896ff38d6182            # reexibe uma execução salva pelo id
 ```
+
+### Histórico
+
+`history` lista em tabela (id, data e hora no fuso `APP_TIMEZONE`, cliente, ticket, tipo, versão, status, `hit` quando veio do
+cache, latência e o começo da chave de cache); os filtros são `--customer`, `--ticket`, `--type`, `--version`, `--status`
+(`ok` ou `error`), `--cache-key` (inteira ou só o começo) e `--limit` (1 a 500, padrão 50). `show <id>` imprime a execução
+com o mesmo renderizador do `generate`. Na API: `GET /api/runs` (mesmos filtros como parâmetros: `customer_id`, `ticket_id`,
+`content_type`, `prompt_version`, `status`, `cache_key`, `limit`) e `GET /api/runs/{id}`; id inexistente responde 404.
+Decisões nos ADRs 0028 e 0029.
 
 Todos aceitam `--json`. `--type` aceita `diagnosis`, `resolution_steps`, `clarifying_questions`, `flow_summary` e `all`. `generate`
 imprime o conteúdo em texto legível (o fluxograma em ASCII, desenhado por código a partir da árvore de decisão) e

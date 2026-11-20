@@ -1,4 +1,4 @@
-"""Rotas HTTP: saúde, metadados, perfis, tickets, versões de prompt e geração de conteúdo.
+"""Rotas HTTP: saúde, metadados, perfis, tickets, versões de prompt, geração de conteúdo e histórico.
 
 Os endpoints são ``def`` (síncronos) e rodam no threadpool do FastAPI (ADR 0015). Nenhuma regra de negócio mora
 aqui: as rotas só traduzem HTTP para chamadas às portas do ``Container``.
@@ -23,6 +23,8 @@ from app.adapters.api.dto import (
     OptionOut,
     PromptVersionOut,
     RubricOut,
+    RunDetailOut,
+    RunSummaryOut,
 )
 from app.container import Container
 from app.domain import rubric
@@ -36,10 +38,13 @@ from app.domain.models import (
     ContentType,
     CustomerProfile,
     RunError,
+    RunStatus,
     TechLevel,
     Ticket,
 )
+from app.ports.repositories import StoredRun
 from app.services.generators import BatchResult, generate, generate_all
+from app.services.history import DEFAULT_HISTORY_LIMIT, HistoryFilters, get_run, list_runs
 
 health_router = APIRouter(tags=["saúde"])
 api_router = APIRouter(prefix="/api")
@@ -81,7 +86,7 @@ def meta(container: ContainerDep) -> MetaOut:
         rubric=RubricOut.model_validate(rubric.rubric_as_dict()),
         default_prompt_version=settings.default_prompt_version,
         free_ticket_title=FREE_TICKET_TITLE,
-        limits=LimitsOut(max_ticket_chars=settings.max_ticket_chars),
+        limits=LimitsOut(max_ticket_chars=settings.max_ticket_chars, history_limit=DEFAULT_HISTORY_LIMIT),
         llm=LlmInfoOut(provider=settings.llm_provider, model=settings.llm_model),
         cache_enabled=settings.cache_enabled,
     )
@@ -160,3 +165,63 @@ def generate_content(body: GenerateIn, container: ContainerDep) -> GenerateOut |
         use_cache=body.use_cache,
     )
     return GenerateOut(saved_path=result.saved_path, run=result.record)
+
+
+def _summary(stored: StoredRun) -> RunSummaryOut:
+    """Converte uma execução lida do disco na linha enxuta da listagem."""
+    run = stored.record
+    return RunSummaryOut(
+        run_id=run.run_id,
+        timestamp=run.timestamp,
+        status=run.status,
+        customer_id=run.customer_id,
+        customer_name=run.customer_profile.name,
+        ticket_id=run.ticket.id,
+        ticket_title=run.ticket.title,
+        content_type=run.content_type,
+        prompt_version=run.prompt_version,
+        provider=run.provider,
+        model=run.model,
+        model_used=run.model_used,
+        cache_key=run.cache_key,
+        cache_hit=run.cache_hit,
+        source_run_id=run.source_run_id,
+        attempts=run.attempts,
+        latency_ms=run.latency_ms,
+        error=run.error,
+        saved_path=stored.saved_path,
+    )
+
+
+@api_router.get("/runs", response_model=list[RunSummaryOut], tags=["histórico"])
+def list_history(
+    container: ContainerDep,
+    customer_id: str | None = None,
+    ticket_id: str | None = None,
+    content_type: ContentType | None = None,
+    prompt_version: str | None = None,
+    status: RunStatus | None = None,
+    cache_key: str | None = None,
+    limit: int = DEFAULT_HISTORY_LIMIT,
+) -> list[RunSummaryOut]:
+    """Histórico de execuções, da mais recente para a mais antiga, com filtros opcionais e um limite.
+
+    ``cache_key`` (inteira ou só o começo) localiza execuções equivalentes: as que compartilham a mesma chave de
+    cache. Valores desconhecidos de ``content_type`` e ``status`` e limite fora de 1 a 500 respondem 422.
+    """
+    filters = HistoryFilters(
+        customer_id=customer_id,
+        ticket_id=ticket_id,
+        content_type=content_type,
+        prompt_version=prompt_version,
+        status=status,
+        cache_key=cache_key,
+    )
+    return [_summary(stored) for stored in list_runs(container.runs, filters, limit)]
+
+
+@api_router.get("/runs/{run_id}", response_model=RunDetailOut, tags=["histórico"])
+def get_history_run(run_id: str, container: ContainerDep) -> RunDetailOut:
+    """Detalhe de uma execução (registro completo e caminho do JSON). Id inexistente ou malformado: 404."""
+    stored = get_run(container.runs, run_id)
+    return RunDetailOut(saved_path=stored.saved_path, run=stored.record)

@@ -7,6 +7,7 @@ desenhado aqui: usa o ASCII determinístico do domínio (``rendered`` do registr
 from __future__ import annotations
 
 import textwrap
+from collections.abc import Sequence
 
 from app.domain.flow_render import render_flow
 from app.domain.models import (
@@ -18,11 +19,13 @@ from app.domain.models import (
     ResolutionSteps,
     RunRecord,
 )
+from app.ports.repositories import StoredRun
 
 # Largura de quebra de linha ao imprimir textos longos (ticket, diagnóstico, passos).
 TEXT_WIDTH = 88
 
-# Quantos caracteres do hash (SHA-256) mostrar na saída legível.
+# Quantos caracteres do hash (SHA-256) mostrar na saída legível. Também é o tamanho do trecho da chave de cache
+# na tabela do histórico (o filtro ``--cache-key`` aceita esse prefixo).
 HASH_PREVIEW_CHARS = 12
 
 
@@ -96,6 +99,12 @@ def render_output(record: RunRecord) -> str:
             return render_flow_summary(FlowSummary.model_validate(output), record.rendered)
 
 
+def format_timestamp(timestamp: str) -> str:
+    """``2026-11-20T14:03:11-03:00`` como ``2026-11-20 14:03:11``. O registro já está no fuso de APP_TIMEZONE
+    (Brasília por padrão), então o deslocamento sai do texto sem converter nada."""
+    return timestamp[:19].replace("T", " ")
+
+
 def render_run_header(record: RunRecord) -> str:
     """Cabeçalho da execução: cliente, ticket, versão do prompt, modelo e latência.
 
@@ -108,8 +117,58 @@ def render_run_header(record: RunRecord) -> str:
     else:
         model += f" · tentativas: {record.attempts}"
     return "\n".join([
+        f"Execução: {record.run_id} · {format_timestamp(record.timestamp)}",
         f"Cliente: {profile.name} ({profile.tech_level.value} · {profile.comm_style.value} · {profile.channel.value})",
         f"Ticket:  {record.ticket.title}",
         f"Prompt:  {record.prompt_version} (sha256 {record.prompt_sha256[:HASH_PREVIEW_CHARS]})",
         model,
     ])
+
+
+# Colunas da tabela do histórico: (título, largura). Definidas uma vez para o cabeçalho e as linhas alinharem.
+_HISTORY_COLUMNS = (
+    ("ID", 12), ("QUANDO", 19), ("CLIENTE", 8), ("TICKET", 10), ("TIPO", 20),
+    ("VER", 4), ("STATUS", 6), ("CACHE", 5), ("LATÊNCIA", 9), ("CHAVE", HASH_PREVIEW_CHARS),
+)
+
+
+def render_history_table(runs: Sequence[StoredRun]) -> str:
+    """Tabela legível das execuções (uma por linha), do jeito que o histórico as devolve.
+
+    Mostra o começo da chave de cache: copiá-lo em ``history --cache-key`` lista as execuções equivalentes.
+    """
+    if not runs:
+        return "Nenhuma execução encontrada."
+    lines = [" ".join(f"{title:<{width}}" for title, width in _HISTORY_COLUMNS).rstrip()]
+    for stored in runs:
+        run = stored.record
+        cells = (
+            run.run_id,
+            format_timestamp(run.timestamp),
+            run.customer_id,
+            run.ticket.id or "(livre)",
+            run.content_type.value,
+            run.prompt_version,
+            "erro" if run.status == "error" else "ok",
+            "hit" if run.cache_hit else "-",
+            f"{run.latency_ms} ms",
+            (run.cache_key or "-")[:HASH_PREVIEW_CHARS],
+        )
+        padded = (f"{cell:<{width}}" for cell, (_, width) in zip(cells, _HISTORY_COLUMNS, strict=True))
+        lines.append(" ".join(padded).rstrip())
+    return "\n".join(lines)
+
+
+def render_stored_run(stored: StoredRun) -> str:
+    """Execução salva por inteiro, como o ``generate`` a mostra: cabeçalho, conteúdo (ou o erro) e o caminho.
+
+    Reaproveita ``render_output``, o mesmo renderizador do ``generate``, para o ``show`` nunca divergir dele.
+    """
+    run = stored.record
+    parts = [render_run_header(run), ""]
+    if run.status == "ok":
+        parts.append(render_output(run))
+    else:
+        parts.append(f"FALHOU: {run.error.message if run.error else 'erro desconhecido'}")
+    parts += ["", f"JSON salvo em: {stored.saved_path}"]
+    return "\n".join(parts)
