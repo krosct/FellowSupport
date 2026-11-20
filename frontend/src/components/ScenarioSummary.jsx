@@ -1,8 +1,8 @@
 import Badge from "./Badge.jsx";
 import ProfileBadges from "./ProfileBadges.jsx";
 
-/** Resumo do cenário escolhido (perfil + ticket) e o botão de gerar, ativado na Etapa 1. */
-export default function ScenarioSummary({ profile, enums, ticketTitle, ready }) {
+/** Resumo do cenário escolhido (perfil + ticket) e o botão de gerar. */
+export default function ScenarioSummary({ profile, enums, ticketTitle, ready, loading, onGenerate }) {
   return (
     <aside className="summary" aria-label="Resumo do cenário">
       <div>
@@ -22,10 +22,9 @@ export default function ScenarioSummary({ profile, enums, ticketTitle, ready }) 
       </div>
       <div className="summary-action">
         <Badge kind={ready ? "ok" : "neutral"}>{ready ? "Cenário completo" : "Cenário incompleto"}</Badge>
-        <button type="button" disabled>
-          Gerar conteúdo
+        <button type="button" disabled={!ready || loading} aria-busy={loading} onClick={onGenerate}>
+          {loading ? "Gerando..." : "Gerar"}
         </button>
-        <small className="hint">Disponível na próxima etapa.</small>
       </div>
     </aside>
   );

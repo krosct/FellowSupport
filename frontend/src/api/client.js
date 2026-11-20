@@ -13,7 +13,8 @@ export class ApiError extends Error {
 async function request(path, options = {}) {
   let response;
   try {
-    response = await fetch(path, { headers: { Accept: "application/json" }, ...options });
+    const { headers, ...rest } = options;
+    response = await fetch(path, { headers: { Accept: "application/json", ...headers }, ...rest });
   } catch {
     throw new ApiError("Não foi possível falar com o servidor.", 0);
   }
@@ -37,3 +38,16 @@ export const getMeta = () => request("/api/meta");
 export const getProfiles = () => request("/api/profiles");
 /** Tickets de exemplo do catálogo. */
 export const getTickets = () => request("/api/tickets");
+/** Versões de prompt disponíveis (conteúdo do meta.json e marca de versão padrão). */
+export const getPromptVersions = () => request("/api/prompt-versions");
+
+/**
+ * Gera um conteúdo. `payload`: `{ profile_id, ticket_id | ticket_text, content_type?, prompt_version? }`.
+ * Devolve `{ saved_path, run }`; o tipo padrão da API é o diagnóstico.
+ */
+export const generate = (payload) =>
+  request("/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });

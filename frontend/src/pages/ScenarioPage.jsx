@@ -1,18 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCatalog } from "../hooks/useCatalog.js";
+import { useGeneration } from "../hooks/useGeneration.js";
+import { labelOf } from "../lib/labels.js";
 import Header from "../components/Header.jsx";
 import Section from "../components/Section.jsx";
 import ProfilePicker from "../components/ProfilePicker.jsx";
 import TicketPicker from "../components/TicketPicker.jsx";
 import ScenarioSummary from "../components/ScenarioSummary.jsx";
+import DiagnosisView from "../components/DiagnosisView.jsx";
+import RunInfo from "../components/RunInfo.jsx";
 
-/** Tela inicial: monta o cenário (perfil + ticket). A geração de conteúdo entra na Etapa 1. */
+/** Tela principal: monta o cenário (perfil + ticket), gera o diagnóstico e mostra o resultado. */
 export default function ScenarioPage() {
   const { status, meta, profiles, tickets, reload } = useCatalog();
   const [profileId, setProfileId] = useState(null);
   const [ticketId, setTicketId] = useState(null);
   const [mode, setMode] = useState("sample");
   const [freeText, setFreeText] = useState("");
+  const generation = useGeneration();
+  const resultRef = useRef(null);
 
   // Seleciona o primeiro perfil e ticket assim que o catálogo chega, para a tela nunca abrir vazia.
   useEffect(() => {
@@ -22,8 +28,19 @@ export default function ScenarioPage() {
 
   const profile = profiles.find((item) => item.id === profileId);
   const ticket = tickets.find((item) => item.id === ticketId);
-  const ticketTitle = mode === "sample" ? ticket?.title : freeText.trim() ? "Ticket digitado" : "";
+  const ticketTitle = mode === "sample" ? ticket?.title : freeText.trim() ? meta?.free_ticket_title : "";
   const ready = Boolean(profile) && (mode === "sample" ? Boolean(ticket) : freeText.trim().length > 0);
+
+  // Ticket do catálogo ou texto livre: a API aceita exatamente um dos dois. O tipo padrão da API é o diagnóstico.
+  const handleGenerate = () => {
+    const source = mode === "sample" ? { ticket_id: ticketId } : { ticket_text: freeText.trim() };
+    generation.run({ profile_id: profileId, ...source });
+  };
+
+  // Leva o resultado para a vista (em telas estreitas ele fica abaixo do botão).
+  useEffect(() => {
+    if (generation.status !== "idle") resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [generation.status]);
 
   return (
     <>
@@ -59,7 +76,32 @@ export default function ScenarioPage() {
                 />
               </Section>
             </div>
-            <ScenarioSummary profile={profile} enums={meta.enums} ticketTitle={ticketTitle} ready={ready} />
+            <ScenarioSummary
+              profile={profile}
+              enums={meta.enums}
+              ticketTitle={ticketTitle}
+              ready={ready}
+              loading={generation.status === "loading"}
+              onGenerate={handleGenerate}
+            />
+          </div>
+        )}
+
+        {status === "ready" && generation.status !== "idle" && (
+          <div ref={resultRef} className="result" aria-live="polite">
+            <Section
+              step={3}
+              title={generation.result ? labelOf(meta.content_types, generation.result.run.content_type) : "Resultado"}
+              hint={generation.result ? undefined : "Isso pode levar alguns segundos."}
+            >
+              {generation.status === "loading" && <p aria-busy="true">Gerando...</p>}
+              {generation.result && (
+                <div className="stack">
+                  <RunInfo run={generation.result.run} savedPath={generation.result.saved_path} />
+                  <DiagnosisView diagnosis={generation.result.run.output} confidenceLevels={meta.confidence_levels} />
+                </div>
+              )}
+            </Section>
           </div>
         )}
       </main>
