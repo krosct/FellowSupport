@@ -1,0 +1,29 @@
+# Segredos: nunca versionar
+.env
+
+# Dados de execução (execuções, cache, comparações)
+var/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Editores e sistema
+.idea/
+.vscode/
+.DS_Store
+
+# Material do desafio (PDF do enunciado não é redistribuído no repositório)
+Desafio_Tecnico_Estagio_IA_Engenharia_de_Prompt.pdf
