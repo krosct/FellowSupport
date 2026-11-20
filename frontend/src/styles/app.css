@@ -1,0 +1,452 @@
+/* FellowSupport: tokens e componentes sobre o Pico CSS.
+   Cores, espaçamentos e raios ficam nos tokens (:root); os componentes só os consultam. */
+
+:root {
+  /* Marca */
+  --fs-accent: #2563eb;
+  --fs-accent-soft: #e8efff;
+  --fs-accent-contrast: #ffffff;
+
+  /* Superfícies e texto */
+  --fs-bg: #f5f7fb;
+  --fs-surface: #ffffff;
+  --fs-border: #dfe4ee;
+  --fs-muted: #5b6577;
+
+  /* Badges por tipo de informação */
+  --fs-badge-level-bg: #ede9fe;
+  --fs-badge-level-fg: #5b21b6;
+  --fs-badge-style-bg: #dcfce7;
+  --fs-badge-style-fg: #166534;
+  --fs-badge-channel-bg: #fef3c7;
+  --fs-badge-channel-fg: #92400e;
+  --fs-badge-ok-bg: #d1fae5;
+  --fs-badge-ok-fg: #065f46;
+  --fs-badge-neutral-bg: #eef1f6;
+  --fs-badge-neutral-fg: #3b4558;
+
+  /* Feedback */
+  --fs-error-bg: #fee2e2;
+  --fs-error-fg: #991b1b;
+  --fs-info-bg: #e0f2fe;
+  --fs-info-fg: #075985;
+
+  /* Medidas */
+  --fs-radius: 0.75rem;
+  --fs-gap: 1rem;
+  --fs-shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 4px 12px rgb(16 24 40 / 5%);
+  --fs-focus: 0 0 0 3px rgb(37 99 235 / 35%);
+
+  /* Ajusta o Pico à marca */
+  --pico-primary: var(--fs-accent);
+  --pico-primary-background: var(--fs-accent);
+  --pico-primary-hover-background: #1d4ed8;
+  --pico-primary-underline: rgb(37 99 235 / 50%);
+  --pico-border-radius: 0.5rem;
+}
+
+/* Escuro: segue o sistema, a menos que o tema claro seja forçado */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fs-accent: #6b9bff;
+    --fs-accent-soft: #1b2745;
+    --fs-bg: #0f141d;
+    --fs-surface: #171e2b;
+    --fs-border: #2a3447;
+    --fs-muted: #9aa6bb;
+    --fs-badge-level-bg: #2e2457;
+    --fs-badge-level-fg: #d4c8ff;
+    --fs-badge-style-bg: #14351f;
+    --fs-badge-style-fg: #a7f0bd;
+    --fs-badge-channel-bg: #40300f;
+    --fs-badge-channel-fg: #fde3a4;
+    --fs-badge-ok-bg: #0f3a2c;
+    --fs-badge-ok-fg: #a7f3d0;
+    --fs-badge-neutral-bg: #232c3d;
+    --fs-badge-neutral-fg: #cbd5e6;
+    --fs-error-bg: #4a1818;
+    --fs-error-fg: #fecaca;
+    --fs-info-bg: #0c3047;
+    --fs-info-fg: #bae6fd;
+    --fs-focus: 0 0 0 3px rgb(107 155 255 / 45%);
+    --pico-primary: var(--fs-accent);
+    --pico-primary-background: #2f5fd0;
+    --pico-primary-hover-background: #3b6fe6;
+  }
+}
+
+body {
+  background: var(--fs-bg);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.hint {
+  margin: 0;
+  color: var(--fs-muted);
+  font-size: 0.875rem;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-gap);
+}
+
+/* Cabeçalho */
+.app-header {
+  background: var(--fs-surface);
+  border-bottom: 1px solid var(--fs-border);
+  margin-bottom: 1.5rem;
+}
+
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-gap);
+  padding-block: 1rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  background: var(--fs-accent);
+  color: var(--fs-accent-contrast);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Layout principal: conteúdo + resumo lateral */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1.5rem;
+  align-items: start;
+  padding-bottom: 3rem;
+}
+
+/* Painéis */
+.panel {
+  background: var(--fs-surface);
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  box-shadow: var(--fs-shadow);
+  padding: 1.25rem;
+  margin: 0;
+}
+
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.step {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--fs-accent-soft);
+  color: var(--fs-accent);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.error-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-gap);
+  background: var(--fs-error-bg);
+  color: var(--fs-error-fg);
+}
+
+.error-panel p,
+.error-panel button {
+  margin: 0;
+}
+
+/* Badges */
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.5;
+  background: var(--fs-badge-neutral-bg);
+  color: var(--fs-badge-neutral-fg);
+}
+
+.badge[data-kind="level"] { background: var(--fs-badge-level-bg); color: var(--fs-badge-level-fg); }
+.badge[data-kind="style"] { background: var(--fs-badge-style-bg); color: var(--fs-badge-style-fg); }
+.badge[data-kind="channel"] { background: var(--fs-badge-channel-bg); color: var(--fs-badge-channel-fg); }
+.badge[data-kind="ok"] { background: var(--fs-badge-ok-bg); color: var(--fs-badge-ok-fg); }
+
+/* Cartões de opção (radio nativo escondido, cartão inteiro clicável) */
+.option-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+
+/* label.option-card: precisa de especificidade igual à do Pico (label:has([type=radio])) para vencer o width */
+label.option-card {
+  position: relative;
+  display: block;
+  width: 100%; /* o Pico encolhe <label>; sem isto os cartões ficam com larguras diferentes */
+  margin: 0;
+  cursor: pointer;
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  padding: 0.85rem 1rem;
+  background: var(--fs-surface);
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.option-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.option-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.option-card:hover {
+  border-color: var(--fs-accent);
+  transform: translateY(-1px);
+}
+
+.option-card[data-checked="true"] {
+  border-color: var(--fs-accent);
+  background: var(--fs-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--fs-accent);
+}
+
+.option-card:has(input:focus-visible) {
+  box-shadow: var(--fs-focus);
+}
+
+/* Alternância (ticket de exemplo / digitar) */
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 0.2rem;
+  border: 1px solid var(--fs-border);
+  border-radius: 999px;
+  background: var(--fs-bg);
+}
+
+.segmented-item {
+  margin: 0;
+  padding: 0.35rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fs-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.segmented-item:hover {
+  color: var(--fs-accent);
+}
+
+.segmented-item[aria-pressed="true"] {
+  background: var(--fs-accent);
+  color: var(--fs-accent-contrast);
+}
+
+.segmented-item:focus-visible {
+  box-shadow: var(--fs-focus);
+}
+
+/* Texto do ticket */
+.ticket-text {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border-left: 4px solid var(--fs-accent);
+  border-radius: 0 var(--fs-radius) var(--fs-radius) 0;
+  background: var(--fs-bg);
+}
+
+.ticket-text h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.ticket-text p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.free-ticket {
+  display: block;
+}
+
+.free-ticket textarea {
+  margin-bottom: 0.25rem;
+  resize: vertical;
+}
+
+.counter {
+  display: block;
+  text-align: right;
+  color: var(--fs-muted);
+}
+
+/* Resumo lateral */
+.summary {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.25rem;
+  background: var(--fs-surface);
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  box-shadow: var(--fs-shadow);
+}
+
+.summary strong {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.summary-label {
+  margin: 0 0 0.25rem;
+  color: var(--fs-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.summary-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.summary-action button {
+  margin: 0;
+  width: 100%;
+}
+
+/* Toasts */
+.toast-region {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(24rem, calc(100vw - 2rem));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--fs-radius);
+  box-shadow: var(--fs-shadow);
+  background: var(--fs-info-bg);
+  color: var(--fs-info-fg);
+  font-size: 0.9rem;
+}
+
+.toast[data-kind="error"] {
+  background: var(--fs-error-bg);
+  color: var(--fs-error-fg);
+}
+
+.toast-message {
+  flex: 1;
+}
+
+.toast-close {
+  margin: 0;
+  padding: 0 0.25rem;
+  width: auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.toast-close:focus-visible {
+  box-shadow: var(--fs-focus);
+}
+
+/* Telas estreitas */
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary {
+    position: static;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header-inner {
+    flex-wrap: wrap;
+  }
+
+  .panel {
+    padding: 1rem;
+  }
+
+  .option-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
