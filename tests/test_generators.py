@@ -13,10 +13,27 @@ from app.adapters.llm.fake import FakeLLM
 from app.config import Settings
 from app.container import build_container
 from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable, NotFound, ValidationFailed
-from app.domain.models import FREE_TICKET_TITLE, ContentType, Diagnosis, RunRecord
+from app.domain.models import (
+    FREE_TICKET_TITLE,
+    OUTPUT_SCHEMAS,
+    ClarifyingQuestions,
+    ContentType,
+    Diagnosis,
+    FlowSummary,
+    ResolutionSteps,
+    RunRecord,
+)
 from app.ports.llm import LLMParams
-from app.services.generators import GenerationContext, generate
-from tests.support import LLMRoteirizado
+from app.services.generators import (
+    GenerationContext,
+    generate,
+    generate_all,
+    generate_clarifying_questions,
+    generate_diagnosis,
+    generate_flow_summary,
+    generate_resolution_steps,
+)
+from tests.support import LLMPorSchema, LLMRoteirizado
 
 FIXO = datetime(2026, 11, 20, 14, 3, 11, tzinfo=ZoneInfo("America/Sao_Paulo"))
 
@@ -201,18 +218,12 @@ def test_exige_exatamente_uma_fonte_de_ticket(settings: Settings, kw: dict) -> N
         ({"ticket_id": "t-nada"}, NotFound),
         ({"prompt_version": "v99"}, NotFound),
         ({"prompt_version": "../v1"}, NotFound),
-        ({"content_type": ContentType.FLOW_SUMMARY}, ValidationFailed),
     ],
 )
 def test_entradas_invalidas_nao_geram_execucao(settings: Settings, kw: dict, erro: type[Exception]) -> None:
     with pytest.raises(erro):
         _gerar(_ctx(settings), **kw)
     assert _arquivos(settings) == []
-
-
-def test_tipos_ainda_nao_disponiveis_dizem_qual(settings: Settings) -> None:
-    with pytest.raises(ValidationFailed, match="Passo a passo"):
-        _gerar(_ctx(settings), content_type=ContentType.RESOLUTION_STEPS)
 
 
 def test_todos_os_perfis_e_tickets_geram_com_o_fake(settings: Settings) -> None:
@@ -238,3 +249,154 @@ def test_relogio_real_grava_o_fuso_de_brasilia(settings: Settings) -> None:
                  profile_id="marta", ticket_id="t-2fa").record
     assert r.timestamp.endswith("-03:00")
     assert datetime.fromisoformat(r.timestamp).utcoffset().total_seconds() == -3 * 3600
+
+
+# --- os quatro geradores ----------------------------------------------------------------------------
+
+
+def _saida_do_fake(schema: type) -> dict:
+    return FakeLLM().complete([], schema, LLMParams("m", 0.1, 10, "prompt")).parsed
+
+
+def _texto_do_fake(schema: type) -> str:
+    return FakeLLM().complete([], schema, LLMParams("m", 0.1, 10, "prompt")).text
+
+
+GERADORES = [
+    (generate_diagnosis, ContentType.DIAGNOSIS),
+    (generate_resolution_steps, ContentType.RESOLUTION_STEPS),
+    (generate_clarifying_questions, ContentType.CLARIFYING_QUESTIONS),
+    (generate_flow_summary, ContentType.FLOW_SUMMARY),
+]
+
+
+@pytest.mark.parametrize(("gerador", "tipo"), GERADORES)
+def test_cada_gerador_grava_a_execucao_do_proprio_tipo(settings: Settings, gerador, tipo: ContentType) -> None:
+    ctx = _ctx(settings)
+    perfil = ctx.profiles.get("rafael")
+    ticket = ctx.tickets.get("t-sync")
+    from app.domain.models import RunTicket
+
+    r = gerador(ctx, perfil, RunTicket(id=ticket.id, title=ticket.title, text=ticket.text))
+    assert r.record.content_type is tipo and r.record.status == "ok"
+    OUTPUT_SCHEMAS[tipo].model_validate(r.record.output)
+    [arquivo] = _arquivos(settings)
+    assert json.loads(arquivo.read_text(encoding="utf-8"))["content_type"] == tipo.value
+    # O prompt enviado é o do tipo: cada um cita o campo exclusivo do próprio schema.
+    assert r.record.prompt_messages[1]["content"].count("Tarefa:") == 1
+
+
+def test_fluxo_grava_o_ascii_em_rendered_e_so_ele(settings: Settings) -> None:
+    ctx = _ctx(settings)
+    fluxo = _gerar(ctx, content_type=ContentType.FLOW_SUMMARY).record
+    assert fluxo.rendered and fluxo.rendered.startswith("(INÍCIO)") and "├─ Sim ─▶" in fluxo.rendered
+    salvo = json.loads(_arquivos(settings)[0].read_text(encoding="utf-8"))
+    assert salvo["rendered"] == fluxo.rendered
+    assert _gerar(ctx, content_type=ContentType.DIAGNOSIS).record.rendered is None
+
+
+def test_perguntas_fora_do_limite_acionam_o_reparo(settings: Settings) -> None:
+    quebrado = _saida_do_fake(ClarifyingQuestions)
+    quebrado["questions"] = quebrado["questions"][:2]  # só 2: abaixo do mínimo de 3
+    llm = LLMRoteirizado(json.dumps(quebrado), _texto_do_fake(ClarifyingQuestions))
+    r = _gerar(_ctx(settings, llm), content_type=ContentType.CLARIFYING_QUESTIONS).record
+    assert r.attempts == 2 and r.status == "ok"
+    assert "questions" in llm.chamadas[1][-1]["content"]
+
+
+def test_fluxo_com_ciclo_aciona_o_reparo_com_a_causa(settings: Settings) -> None:
+    ciclico = _saida_do_fake(FlowSummary)
+    ciclico["edges"][3]["target"] = "n2"  # n3 -> n2 fecha o ciclo n2 -> n3 -> n2
+    llm = LLMRoteirizado(json.dumps(ciclico), _texto_do_fake(FlowSummary))
+    r = _gerar(_ctx(settings, llm), content_type=ContentType.FLOW_SUMMARY).record
+    assert r.attempts == 2
+    assert "ciclo" in llm.chamadas[1][-1]["content"]
+
+
+def test_telefone_com_markdown_aciona_o_reparo_e_outros_canais_nao(settings: Settings) -> None:
+    com_markdown = _saida_do_fake(ResolutionSteps)
+    com_markdown["steps"][0]["instruction"] = "**Abra** o cadastro."
+    texto = json.dumps(com_markdown, ensure_ascii=False)
+
+    # marta atende por telefone: markdown é recusado e o erro explica o motivo ao modelo.
+    llm = LLMRoteirizado(texto, _texto_do_fake(ResolutionSteps))
+    r = _gerar(_ctx(settings, llm), content_type=ContentType.RESOLUTION_STEPS, profile_id="marta").record
+    assert r.attempts == 2
+    assert "telefone" in llm.chamadas[1][-1]["content"] and "markdown" in llm.chamadas[1][-1]["content"]
+
+    # bianca atende por chat: o mesmo texto passa de primeira.
+    llm = LLMRoteirizado(texto)
+    bianca = _gerar(_ctx(settings, llm), content_type=ContentType.RESOLUTION_STEPS, profile_id="bianca")
+    assert bianca.record.attempts == 1
+
+
+def test_telefone_com_markdown_persistente_vira_invalid_llm_output(settings: Settings) -> None:
+    com_markdown = _saida_do_fake(ResolutionSteps)
+    com_markdown["closing"] = "- até logo"
+    texto = json.dumps(com_markdown, ensure_ascii=False)
+    with pytest.raises(InvalidLLMOutput, match="markdown"):
+        _gerar(_ctx(settings, LLMRoteirizado(texto, texto)), content_type=ContentType.RESOLUTION_STEPS,
+               profile_id="marta")
+
+
+# --- modo all -------------------------------------------------------------------------------------------
+
+
+def _gerar_todos(ctx: GenerationContext, **kw):
+    kw.setdefault("profile_id", "marta")
+    kw.setdefault("ticket_id", "t-2fa")
+    return generate_all(ctx, **kw)
+
+
+def test_all_gera_os_quatro_tipos_um_arquivo_por_tipo(settings: Settings) -> None:
+    lote = _gerar_todos(_ctx(settings))
+    assert [i.content_type for i in lote.items] == list(ContentType)
+    assert all(i.ok for i in lote.items) and lote.errors == []
+    arquivos = _arquivos(settings)
+    assert len(arquivos) == 4
+    tipos = {json.loads(a.read_text(encoding="utf-8"))["content_type"] for a in arquivos}
+    assert tipos == {t.value for t in ContentType}
+    assert len({i.result.record.run_id for i in lote.items}) == 4
+
+
+def test_all_roda_em_threads_diferentes_sem_corrida_nos_arquivos(settings: Settings) -> None:
+    llm = LLMPorSchema({})
+    _gerar_todos(_ctx(settings, llm))
+    assert sorted(s.__name__ for s in llm.chamadas) == sorted(
+        ["Diagnosis", "ResolutionSteps", "ClarifyingQuestions", "FlowSummary"]
+    )
+    assert len(llm.threads) > 1  # não rodou na thread do chamador, em fila
+    # Cada arquivo é JSON íntegro e distinto.
+    for arquivo in _arquivos(settings):
+        RunRecord.model_validate_json(arquivo.read_text(encoding="utf-8"))
+
+
+def test_all_uma_falha_nao_derruba_os_outros(settings: Settings) -> None:
+    llm = LLMPorSchema({ResolutionSteps: LLMUnavailable("fora do ar"), FlowSummary: "{}"})
+    lote = _gerar_todos(_ctx(settings, llm))
+    por_tipo = {i.content_type: i for i in lote.items}
+    assert por_tipo[ContentType.DIAGNOSIS].ok and por_tipo[ContentType.CLARIFYING_QUESTIONS].ok
+    assert isinstance(por_tipo[ContentType.RESOLUTION_STEPS].error, LLMUnavailable)
+    assert isinstance(por_tipo[ContentType.FLOW_SUMMARY].error, InvalidLLMOutput)
+    assert len(lote.errors) == 2
+    # Os dois com erro também gravaram o JSON (status error), e os dois ok gravaram o seu.
+    status = sorted(json.loads(a.read_text(encoding="utf-8"))["status"] for a in _arquivos(settings))
+    assert status == ["error", "error", "ok", "ok"]
+    assert por_tipo[ContentType.RESOLUTION_STEPS].result.record.error.type == "LLMUnavailable"
+
+
+@pytest.mark.parametrize(
+    ("kw", "erro"),
+    [
+        ({"profile_id": "ninguem"}, NotFound),
+        ({"ticket_id": "t-nada"}, NotFound),
+        ({"prompt_version": "v99"}, NotFound),
+        ({"ticket_id": None, "ticket_text": "  "}, ValidationFailed),
+        ({"ticket_text": "x"}, ValidationFailed),
+    ],
+)
+def test_all_erro_de_entrada_levanta_uma_vez_sem_gerar_nada(settings: Settings, kw: dict, erro: type) -> None:
+    llm = LLMPorSchema({})
+    with pytest.raises(erro):
+        _gerar_todos(_ctx(settings, llm), **kw)
+    assert llm.chamadas == [] and _arquivos(settings) == []

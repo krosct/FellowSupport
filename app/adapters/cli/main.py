@@ -15,6 +15,7 @@ import textwrap
 from collections.abc import Sequence
 from typing import NoReturn
 
+from app.adapters.cli.render import HASH_PREVIEW_CHARS, TEXT_WIDTH, render_output, render_run_header
 from app.container import Container, build_container
 from app.domain.errors import (
     DomainError,
@@ -24,7 +25,7 @@ from app.domain.errors import (
     NotFound,
     ValidationFailed,
 )
-from app.domain.models import Confidence, ContentType, Diagnosis, RunRecord
+from app.domain.models import ContentType
 from app.services.generators import generate
 
 EXIT_OK = 0
@@ -40,13 +41,6 @@ ERROR_EXIT_CODES: dict[type[DomainError], int] = {
     LLMRateLimited: EXIT_LLM,
     InvalidLLMOutput: EXIT_LLM,
 }
-
-# Largura de quebra de linha ao imprimir textos longos (ticket, diagnóstico).
-TEXT_WIDTH = 88
-
-# Quantos caracteres do hash (SHA-256) mostrar na saída legível.
-HASH_PREVIEW_CHARS = 12
-
 
 class _Parser(argparse.ArgumentParser):
     """ArgumentParser que usa o código 1 para erros de uso (o 2 fica reservado a "não encontrado")."""
@@ -134,43 +128,6 @@ def _cmd_versions(container: Container, args: argparse.Namespace) -> None:
               f"{v.description}{mark}")
 
 
-def _wrap(text: str, indent: str, marker: str = "") -> str:
-    """Quebra ``text`` na largura da CLI; ``marker`` (ex.: ``"* "``) abre a 1ª linha e as demais alinham sob o texto."""
-    return textwrap.fill(
-        text, width=TEXT_WIDTH, initial_indent=indent + marker, subsequent_indent=indent + " " * len(marker)
-    )
-
-
-def _render_diagnosis(diagnosis: Diagnosis) -> str:
-    """Diagnóstico em texto legível para o terminal (hipóteses, evidências, faltantes, conclusão e resumo)."""
-    lines = ["HIPÓTESES"]
-    for h in diagnosis.hypotheses:
-        lines.append(_wrap(f"{h.description} ({h.probability_pct}%)", "  ", f"{h.id} · "))
-        lines += [_wrap(text, "      ", "+ ") for text in h.evidence_for]
-        lines += [_wrap(text, "      ", "- ") for text in h.evidence_against]
-    lines += ["", "EVIDÊNCIAS DISPONÍVEIS"] + [_wrap(text, "  ", "* ") for text in diagnosis.available_evidence]
-    lines += ["", "INFORMAÇÕES FALTANTES"]
-    lines += [_wrap(f"{info.item}: {info.why_it_matters}", "  ", "* ") for info in diagnosis.missing_information]
-    conclusion = diagnosis.probable_conclusion
-    confidence = Confidence(conclusion.confidence).label
-    lines += ["", f"CONCLUSÃO PROVÁVEL (confiança: {confidence})"]
-    lines.append(_wrap(conclusion.summary, "  ", f"{conclusion.hypothesis_id} · "))
-    lines += ["", "RESUMO PARA O CLIENTE", _wrap(diagnosis.customer_summary, "  ")]
-    return "\n".join(lines)
-
-
-def _render_run_header(record: RunRecord) -> str:
-    """Cabeçalho da execução: cliente, ticket, versão do prompt, modelo, latência e tentativas."""
-    profile = record.customer_profile
-    return "\n".join([
-        f"Cliente: {profile.name} ({profile.tech_level.value} · {profile.comm_style.value} · {profile.channel.value})",
-        f"Ticket:  {record.ticket.title}",
-        f"Prompt:  {record.prompt_version} (sha256 {record.prompt_sha256[:HASH_PREVIEW_CHARS]})",
-        f"Modelo:  {record.model_used or record.model} via {record.provider} · {record.latency_ms} ms · "
-        f"tentativas: {record.attempts}",
-    ])
-
-
 def _cmd_generate(container: Container, args: argparse.Namespace) -> None:
     """Gera o conteúdo pedido, imprime a saída legível (ou JSON) e o caminho do arquivo salvo."""
     result = generate(
@@ -185,9 +142,9 @@ def _cmd_generate(container: Container, args: argparse.Namespace) -> None:
     if args.json:
         _dump({"saved_path": result.saved_path, "run": record.model_dump(mode="json")})
         return
-    print(_render_run_header(record))
+    print(render_run_header(record))
     print()
-    print(_render_diagnosis(Diagnosis.model_validate(record.output)))
+    print(render_output(record))
     print()
     print(f"JSON salvo em: {result.saved_path}")
 

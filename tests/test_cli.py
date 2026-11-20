@@ -107,6 +107,32 @@ def test_generate_mostra_saida_legivel_e_o_caminho_do_json(container, settings, 
     Diagnosis.model_validate(salvo["output"])
 
 
+# Cabeçalhos de seção que cada tipo imprime (saída legível, não JSON).
+SECOES = {
+    "diagnosis": ["HIPÓTESES", "CONCLUSÃO PROVÁVEL"],
+    "resolution_steps": ["ABERTURA", "PASSOS", "Esperado:", "Se falhar:", "QUANDO ESCALAR", "FECHAMENTO"],
+    "clarifying_questions": ["PERGUNTAS", "Motivo:", "Destrava:", "DÁ PARA AVANÇAR SEM AS RESPOSTAS? SIM"],
+    "flow_summary": ["(INÍCIO)", "├─ Sim ─▶", "└─ Não ─▶", "FIM:"],
+}
+
+
+@pytest.mark.parametrize("tipo", list(SECOES))
+def test_generate_imprime_cada_tipo_de_forma_legivel(container, settings, capsys, tipo) -> None:
+    assert main(["generate", "--customer", "marta", "--ticket", "t-2fa", "--type", tipo], container) == EXIT_OK
+    saida = capsys.readouterr().out
+    for trecho in SECOES[tipo]:
+        assert trecho in saida
+    [arquivo] = _salvos(settings)
+    assert json.loads(arquivo.read_text(encoding="utf-8"))["content_type"] == tipo
+
+
+def test_fluxo_na_cli_imprime_exatamente_o_ascii_gravado(container, settings, capsys) -> None:
+    main(["generate", "--customer", "bianca", "--ticket", "t-sync", "--type", "flow_summary"], container)
+    saida = capsys.readouterr().out
+    gravado = json.loads(_salvos(settings)[0].read_text(encoding="utf-8"))["rendered"]
+    assert gravado in saida
+
+
 def test_generate_com_texto_livre(container, settings, capsys) -> None:
     assert main(["generate", "--customer", "bianca", "--text", "A API devolve 500."], container) == EXIT_OK
     assert "Ticket digitado" in capsys.readouterr().out
@@ -126,8 +152,6 @@ def test_generate_json(container, capsys) -> None:
         (["generate", "--customer", "marta", "--ticket", "x"], EXIT_NOT_FOUND, "Ticket não encontrado"),
         (["generate", "--customer", "marta", "--ticket", "t-2fa", "--version", "v9"], EXIT_NOT_FOUND, "v9"),
         (["generate", "--customer", "marta", "--text", "  "], EXIT_USAGE, "vazio"),
-        (["generate", "--customer", "marta", "--ticket", "t-2fa", "--type", "flow_summary"], EXIT_USAGE,
-         "ainda não está disponível"),
     ],
 )
 def test_generate_erros_de_entrada(container, settings, capsys, argv, codigo, trecho) -> None:

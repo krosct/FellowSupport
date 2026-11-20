@@ -6,9 +6,19 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from app.adapters.llm.fake import FAKE_MODEL_NAME, FakeLLM
+from app.domain.channel_rules import find_channel_violations
 from app.domain.errors import ValidationFailed
+from app.domain.flow_render import render_flow
 from app.domain.llm_output import extract_json_object, format_validation_error
-from app.domain.models import Diagnosis
+from app.domain.models import (
+    OUTPUT_SCHEMAS,
+    Channel,
+    ClarifyingQuestions,
+    ContentType,
+    Diagnosis,
+    FlowSummary,
+    ResolutionSteps,
+)
 from app.ports.llm import LLMParams
 
 PARAMS = LLMParams(model="qualquer/modelo", temperature=0.1, max_tokens=100, structured_mode="json_schema")
@@ -28,6 +38,32 @@ def test_fake_devolve_diagnostico_valido_pelo_schema() -> None:
     assert r.model_used == FAKE_MODEL_NAME
     assert r.usage["prompt_tokens"] > 0 and r.usage["completion_tokens"] > 0
     assert "simulada" in diagnostico.customer_summary
+
+
+@pytest.mark.parametrize("tipo", list(ContentType))
+def test_fake_devolve_resposta_valida_para_os_quatro_schemas(tipo: ContentType) -> None:
+    schema = OUTPUT_SCHEMAS[tipo]
+    r = FakeLLM().complete(_mensagens("O SMS não chega"), schema, PARAMS)
+    saida = schema.model_validate(r.parsed)
+    # Válida para qualquer canal: sem markdown, então serve também ao telefone.
+    for canal in Channel:
+        assert find_channel_violations(canal, saida) == ""
+    assert r.text == FakeLLM().complete(_mensagens("O SMS não chega"), schema, PARAMS).text  # determinística
+
+
+def test_fake_do_fluxo_desenha_com_ramo_e_convergencia() -> None:
+    fluxo = FlowSummary.model_validate(FakeLLM().complete(_mensagens("x"), FlowSummary, PARAMS).parsed)
+    ascii_ = render_flow(fluxo)
+    assert "├─ Sim ─▶" in ascii_ and "└─ Não ─▶" in ascii_ and "(segue em" in ascii_
+
+
+def test_fake_das_perguntas_e_dos_passos_respeitam_os_limites() -> None:
+    perguntas = ClarifyingQuestions.model_validate(
+        FakeLLM().complete(_mensagens("x"), ClarifyingQuestions, PARAMS).parsed
+    )
+    assert 3 <= len(perguntas.questions) <= 5
+    passos = ResolutionSteps.model_validate(FakeLLM().complete(_mensagens("x"), ResolutionSteps, PARAMS).parsed)
+    assert all(p.expected_result and p.if_it_fails for p in passos.steps)
 
 
 def test_fake_e_deterministico_e_cita_o_ticket() -> None:

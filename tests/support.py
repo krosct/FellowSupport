@@ -26,3 +26,37 @@ class LLMRoteirizado:
             text=item, parsed=extract_json_object(item), usage={"prompt_tokens": 10, "completion_tokens": 5},
             latency_ms=1, model_used="vendor/efetivo",
         )
+
+
+class LLMPorSchema:
+    """LLM de teste seguro para threads: a resposta depende do schema pedido (não da ordem das chamadas).
+
+    ``respostas`` mapeia o schema para um texto ou uma exceção; schema ausente cai no ``FakeLLM``. Útil no modo
+    ``all``, em que as quatro chamadas chegam em ordem imprevisível.
+    """
+
+    def __init__(self, respostas: dict[type[BaseModel], str | Exception]) -> None:
+        import threading
+
+        from app.adapters.llm.fake import FakeLLM
+
+        self._respostas = respostas
+        self._fake = FakeLLM()
+        self._lock = threading.Lock()
+        self.chamadas: list[type[BaseModel]] = []
+        self.threads: set[int] = set()
+
+    def complete(self, messages: Sequence[ChatMessage], schema: type[BaseModel], params: LLMParams) -> LLMResult:
+        import threading
+
+        with self._lock:
+            self.chamadas.append(schema)
+            self.threads.add(threading.get_ident())
+        item = self._respostas.get(schema)
+        if item is None:
+            return self._fake.complete(messages, schema, params)
+        if isinstance(item, Exception):
+            raise item
+        usage = {"prompt_tokens": 1, "completion_tokens": 1}
+        return LLMResult(text=item, parsed=extract_json_object(item), usage=usage, latency_ms=1,
+                         model_used="vendor/efetivo")

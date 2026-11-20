@@ -15,7 +15,21 @@ from collections.abc import Callable, Sequence
 from pydantic import BaseModel
 
 from app.domain.errors import ValidationFailed
-from app.domain.models import Conclusion, Confidence, Diagnosis, Hypothesis, MissingInfo
+from app.domain.models import (
+    ClarifyingQuestion,
+    ClarifyingQuestions,
+    Conclusion,
+    Confidence,
+    Diagnosis,
+    FlowEdge,
+    FlowNode,
+    FlowNodeType,
+    FlowSummary,
+    Hypothesis,
+    MissingInfo,
+    ResolutionStep,
+    ResolutionSteps,
+)
 from app.ports.llm import ChatMessage, LLMParams, LLMResult
 
 # Identificador devolvido em ``model_used``: deixa claro, no JSON salvo, que não houve modelo real.
@@ -81,8 +95,100 @@ def _diagnosis(snippet: str) -> Diagnosis:
     )
 
 
-# Schema -> construtor da resposta simulada. As etapas seguintes registram aqui os demais conteúdos.
-_BUILDERS: dict[type[BaseModel], Callable[[str], BaseModel]] = {Diagnosis: _diagnosis}
+def _resolution_steps(snippet: str) -> ResolutionSteps:
+    """Passo a passo simulado, em frases corridas (sem markdown), válido para qualquer canal."""
+    return ResolutionSteps(
+        opening=f"{SIMULATED_NOTICE} Entendi o problema e vamos resolver juntos, um passo de cada vez.",
+        steps=[
+            ResolutionStep(
+                order=1,
+                title="Conferir os dados do cadastro",
+                instruction="Abra o seu cadastro e confira se o número de contato e o e-mail estão corretos.",
+                expected_result="Os dados aparecem exatamente como você os conhece.",
+                if_it_fails="Corrija o dado que estiver errado e salve a alteração.",
+            ),
+            ResolutionStep(
+                order=2,
+                title="Repetir a ação com calma",
+                instruction="Tente de novo a ação que não funcionou e observe a mensagem que aparece.",
+                expected_result="A ação é concluída sem mensagem de erro.",
+                if_it_fails="Anote a mensagem exata que apareceu e passe para o próximo passo.",
+            ),
+            ResolutionStep(
+                order=3,
+                title="Pedir ajuda com os detalhes",
+                instruction="Conte para o atendimento a mensagem que apareceu e o horário da tentativa.",
+                expected_result="O atendimento confirma que recebeu as informações.",
+                if_it_fails="Peça para falar com um especialista.",
+            ),
+        ],
+        when_to_escalate="Escale para o nível 3 se o problema seguir após o passo 3 ou houver risco de perder dados.",
+        closing="Qualquer novidade, é só me chamar que seguimos daqui.",
+    )
+
+
+def _clarifying_questions(snippet: str) -> ClarifyingQuestions:
+    """Quatro perguntas simuladas, já em ordem de prioridade."""
+    return ClarifyingQuestions(
+        questions=[
+            ClarifyingQuestion(
+                priority=1,
+                question="Qual é a mensagem exata que aparece quando o problema acontece?",
+                why_it_matters="A mensagem aponta direto para a causa mais provável.",
+                unlocks="Confirma ou descarta a hipótese H1.",
+            ),
+            ClarifyingQuestion(
+                priority=2,
+                question="A que horas foi a última tentativa?",
+                why_it_matters="Permite cruzar o relato com os registros do serviço.",
+                unlocks="Separa uma falha temporária de um problema de configuração.",
+            ),
+            ClarifyingQuestion(
+                priority=3,
+                question="Isso acontece com outras pessoas da sua equipe?",
+                why_it_matters="Mostra se o problema é da conta inteira ou de um só usuário.",
+                unlocks="Descarta a hipótese de limitação da conta.",
+            ),
+            ClarifyingQuestion(
+                priority=4,
+                question="Houve alguma mudança recente no seu cadastro ou no seu aparelho?",
+                why_it_matters="Mudanças recentes costumam ser a origem do problema.",
+                unlocks="Confirma a hipótese de falha de configuração.",
+            ),
+        ],
+        can_proceed_without_answers=True,
+        proceed_note=f"{SIMULATED_NOTICE} Dá para começar pela conferência do cadastro enquanto as respostas chegam.",
+    )
+
+
+def _flow_summary(snippet: str) -> FlowSummary:
+    """Fluxo simulado com decisão, ramos que convergem em um mesmo fim e um escalonamento."""
+    nodes = [
+        ("n1", FlowNodeType.START, "Cliente relata o problema"),
+        ("n2", FlowNodeType.DECISION, "Os dados do cadastro estão corretos?"),
+        ("n3", FlowNodeType.ACTION, "Corrigir os dados do cadastro"),
+        ("n4", FlowNodeType.DECISION, "A ação funciona ao repetir?"),
+        ("n5", FlowNodeType.ACTION, "Coletar a mensagem de erro e o horário"),
+        ("n6", FlowNodeType.END, "Problema resolvido"),
+        ("n7", FlowNodeType.END, "Escalar para o nível 3 com os detalhes"),
+    ]
+    edges = [
+        ("n1", "n2", ""), ("n2", "n3", "Não"), ("n2", "n4", "Sim"), ("n3", "n4", ""),
+        ("n4", "n6", "Sim"), ("n4", "n5", "Não"), ("n5", "n7", ""),
+    ]
+    return FlowSummary(
+        nodes=[FlowNode(id=i, type=t, label=label) for i, t, label in nodes],
+        edges=[FlowEdge(source=a, target=b, label=label) for a, b, label in edges],
+    )
+
+
+# Schema -> construtor da resposta simulada, um por tipo de conteúdo.
+_BUILDERS: dict[type[BaseModel], Callable[[str], BaseModel]] = {
+    Diagnosis: _diagnosis,
+    ResolutionSteps: _resolution_steps,
+    ClarifyingQuestions: _clarifying_questions,
+    FlowSummary: _flow_summary,
+}
 
 
 class FakeLLM:

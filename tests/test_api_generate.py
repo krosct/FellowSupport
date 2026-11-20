@@ -12,7 +12,7 @@ from app.adapters.api.main import ERROR_STATUS, create_app
 from app.config import Settings
 from app.container import build_container
 from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable, NotFound, ValidationFailed
-from app.domain.models import Diagnosis
+from app.domain.models import OUTPUT_SCHEMAS, ContentType, Diagnosis
 from tests.support import LLMRoteirizado
 
 CORPO = {"profile_id": "marta", "ticket_id": "t-2fa", "content_type": "diagnosis"}
@@ -48,6 +48,21 @@ def test_gera_com_texto_livre(settings: Settings) -> None:
     assert run["ticket"]["id"] is None and run["ticket"]["text"] == "A API devolve 500 desde as 9h."
 
 
+@pytest.mark.parametrize("tipo", [t for t in ContentType])
+def test_gera_cada_tipo_com_saida_valida_pelo_schema(settings: Settings, tipo: ContentType) -> None:
+    r = _cliente(settings).post("/api/generate", json={**CORPO, "content_type": tipo.value})
+    assert r.status_code == 200
+    run = r.json()["run"]
+    assert run["content_type"] == tipo.value and run["status"] == "ok"
+    OUTPUT_SCHEMAS[tipo].model_validate(run["output"])
+    # Só o fluxograma traz o desenho ASCII em "rendered".
+    assert (run["rendered"] is not None) == (tipo is ContentType.FLOW_SUMMARY)
+
+
+def test_tipo_de_conteudo_desconhecido_e_422(settings: Settings) -> None:
+    assert _cliente(settings).post("/api/generate", json={**CORPO, "content_type": "inexistente"}).status_code == 422
+
+
 def test_tipo_padrao_e_diagnostico(settings: Settings) -> None:
     r = _cliente(settings).post("/api/generate", json={"profile_id": "marta", "ticket_id": "t-csv"})
     assert r.json()["run"]["content_type"] == "diagnosis"
@@ -62,7 +77,6 @@ def test_tipo_padrao_e_diagnostico(settings: Settings) -> None:
         ({**CORPO, "ticket_text": "x"}, 422, "só um"),
         ({"profile_id": "marta"}, 422, "só um"),
         ({"profile_id": "marta", "ticket_text": "   "}, 422, "vazio"),
-        ({**CORPO, "content_type": "flow_summary"}, 422, "ainda não está disponível"),
     ],
 )
 def test_erros_de_entrada_viram_http_com_mensagem(settings: Settings, corpo: dict, status: int, trecho: str) -> None:

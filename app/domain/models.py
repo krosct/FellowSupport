@@ -74,6 +74,11 @@ _CONTENT_TYPE_LABELS: dict[ContentType, str] = {
 }
 
 
+# Opção "todos os tipos" da API, da CLI e do site: não é um ``ContentType``, mas todos a consomem desta definição.
+ALL_OPTION_VALUE = "all"
+ALL_OPTION_LABEL = "Todos"
+
+
 class CustomerProfile(BaseModel):
     """Perfil de cliente (item 4.1 do PDF): quem recebe a resposta e como prefere recebê-la."""
 
