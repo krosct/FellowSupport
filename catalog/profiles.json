@@ -1,0 +1,30 @@
+[
+  {
+    "id": "marta",
+    "name": "Dona Marta",
+    "tech_level": "leigo",
+    "comm_style": "didático",
+    "channel": "telefone"
+  },
+  {
+    "id": "rafael",
+    "name": "Rafael",
+    "tech_level": "intermediário",
+    "comm_style": "detalhado",
+    "channel": "e-mail"
+  },
+  {
+    "id": "bianca",
+    "name": "Bianca",
+    "tech_level": "avançado",
+    "comm_style": "direto",
+    "channel": "chat"
+  },
+  {
+    "id": "jorge",
+    "name": "Seu Jorge",
+    "tech_level": "leigo",
+    "comm_style": "direto",
+    "channel": "chat"
+  }
+]

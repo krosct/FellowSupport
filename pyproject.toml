@@ -1,0 +1,15 @@
+# Somente configuração de ferramentas (as dependências ficam em requirements*.txt; ADR 0017).
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["frontend", "var"]
+
+[tool.ruff.lint]
+# E/F: erros e pyflakes · I: imports ordenados · B: bugs comuns · UP: sintaxe moderna
+select = ["E", "F", "I", "B", "UP"]
