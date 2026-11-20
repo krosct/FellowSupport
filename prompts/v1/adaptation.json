@@ -1,0 +1,17 @@
+{
+  "tech_level": {
+    "leigo": "leigo",
+    "intermediário": "intermediário",
+    "avançado": "avançado"
+  },
+  "comm_style": {
+    "direto": "direto",
+    "detalhado": "detalhado",
+    "didático": "didático"
+  },
+  "channel": {
+    "chat": "chat",
+    "e-mail": "e-mail",
+    "telefone": "telefone"
+  }
+}

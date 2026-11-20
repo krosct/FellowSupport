@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "based_on": null,
+  "description": "Linha de base: persona curta e perfil inserido cru, sem regras de adaptação explícitas.",
+  "created": "2026-11-20",
+  "changes": [
+    {
+      "what": "Primeira versão: persona de analista N2, contexto com perfil e ticket delimitado, decomposição do diagnóstico e formato JSON.",
+      "why": "Estabelecer a linha de base mensurável contra a qual as versões seguintes serão comparadas pela rubrica.",
+      "expected_effect": "Diagnóstico válido e organizado, com adequação ao perfil limitada, já que o modelo recebe só os rótulos do perfil."
+    }
+  ],
+  "content_sha256": "c6d3d8383eecfd73c61d8964ea277333935073f3922cc9814c450078a0340350"
+}
