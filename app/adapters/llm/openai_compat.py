@@ -10,6 +10,7 @@ Responsabilidades, todas escondidas atrás da porta ``LLMClient``:
 from __future__ import annotations
 
 import json
+import logging
 import time
 from collections.abc import Sequence
 from typing import Any
@@ -17,9 +18,11 @@ from typing import Any
 import openai
 from pydantic import BaseModel
 
-from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable
+from app.domain.errors import RATE_LIMIT_MESSAGE, InvalidLLMOutput, LLMRateLimited, LLMUnavailable
 from app.domain.llm_output import extract_json_object
 from app.ports.llm import ChatMessage, LLMParams, LLMResult, ReasoningMode, StructuredMode
+
+logger = logging.getLogger("fellowsupport.llm")
 
 # Tamanho máximo da mensagem de erro do provedor repassada ao usuário (evita despejar HTML ou corpos enormes).
 _MAX_ERROR_CHARS = 300
@@ -125,7 +128,9 @@ class OpenAICompatClient:
         try:
             response = self._client.chat.completions.create(**request)
         except openai.RateLimitError as exc:
-            raise LLMRateLimited(f"Limite de requisições do provedor atingido: {_short(exc.message)}") from exc
+            # O texto cru do provedor vai só para o log; quem usa o sistema lê a frase curta e única do domínio.
+            logger.warning("provedor respondeu 429: %s", _short(exc.message))
+            raise LLMRateLimited(RATE_LIMIT_MESSAGE) from exc
         except openai.APITimeoutError as exc:
             raise LLMUnavailable("O provedor de LLM não respondeu a tempo (timeout).") from exc
         except openai.APIConnectionError as exc:
@@ -147,7 +152,8 @@ class OpenAICompatClient:
             error = error if isinstance(error, dict) else {}
             detail = _short(error.get("message", "resposta sem conteúdo"))
             if error.get("code") == 429:
-                raise LLMRateLimited(f"Limite de requisições do provedor atingido: {detail}")
+                logger.warning("provedor respondeu 429 no corpo: %s", detail)
+                raise LLMRateLimited(RATE_LIMIT_MESSAGE)
             raise LLMUnavailable(f"O provedor de LLM não devolveu resposta: {detail}")
 
         choice = choices[0]

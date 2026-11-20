@@ -152,6 +152,20 @@ def test_resposta_sem_json_tambem_aciona_o_reparo(settings: Settings) -> None:
     assert "JSON" in llm.chamadas[1][-1]["content"]
 
 
+def test_json_cercado_de_prosa_com_chaves_soltas_nao_gasta_o_reparo(settings: Settings) -> None:
+    texto = f"Segue o formato {{campo: valor}}:\n{_diagnostico_valido()}\nQualquer coisa {{me avise}}."
+    llm = LLMRoteirizado(texto)
+    r = _gerar(_ctx(settings, llm)).record
+    assert r.status == "ok" and r.attempts == 1 and len(llm.chamadas) == 1
+
+
+def test_resposta_truncada_com_objeto_interno_vai_para_o_reparo(settings: Settings) -> None:
+    truncada = _diagnostico_valido()[:-40]  # corta o fim: o objeto externo nunca fecha
+    llm = LLMRoteirizado(truncada, _diagnostico_valido())
+    r = _gerar(_ctx(settings, llm)).record
+    assert r.attempts == 2 and "JSON" in llm.chamadas[1][-1]["content"]
+
+
 def test_saida_invalida_apos_reparo_vira_invalid_llm_output_e_grava_erro(settings: Settings) -> None:
     llm = LLMRoteirizado("{}", "{}")
     with pytest.raises(InvalidLLMOutput, match="reparo"):

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
 
 from pydantic import ValidationError
 
@@ -18,22 +19,56 @@ _FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 MAX_REPAIR_ERRORS = 8
 
 
+def _top_level_starts(text: str) -> Iterator[int]:
+    """Posições das ``{`` que abrem um bloco de nível zero (fora de qualquer outro bloco ``{...}``).
+
+    Percorre o texto contando a profundidade das chaves e ignorando as que aparecem dentro de strings JSON.
+    Só olha o nível zero para não confundir um objeto **interno** de uma resposta truncada com a resposta inteira:
+    se o objeto externo nunca fecha, a profundidade não volta a zero e nenhum candidato falso aparece.
+    """
+    depth, in_string, escaped = 0, False, False
+    for index, char in enumerate(text):
+        if depth and in_string:
+            # Dentro de uma string JSON, só a aspa não escapada a fecha (``\"`` e ``\\`` tratados em ``escaped``).
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == "{":
+            if depth == 0:
+                yield index
+            depth += 1
+        elif char == "}" and depth:
+            depth -= 1
+        elif char == '"' and depth:
+            in_string = True
+
+
 def extract_json_object(text: str) -> dict | None:
     """Extrai o primeiro objeto JSON do texto, ou ``None`` se não houver um objeto decodificável.
 
-    Tenta, em ordem: o texto inteiro, o conteúdo de uma cerca de código e o trecho entre a primeira ``{`` e a
-    última ``}``. A ordem prefere o caso limpo e só recorre à heurística quando o modelo "conversou" em volta.
+    Tenta, em ordem: o texto inteiro, o conteúdo de uma cerca de código e cada bloco ``{...}`` de nível zero
+    decodificado a partir da sua abertura. O último passo cobre o modelo que "conversa" em volta, inclusive com
+    chaves soltas no texto antes ou depois do JSON (o corte ingênuo "primeira ``{`` até a última ``}``" falharia
+    nesse caso). Resposta truncada, lista ou texto sem objeto devolvem ``None`` e seguem para o reparo.
     """
     candidates = [text.strip()]
     fenced = _FENCE.search(text)
     if fenced:
         candidates.append(fenced.group(1).strip())
-    start, end = text.find("{"), text.rfind("}")
-    if 0 <= start < end:
-        candidates.append(text[start : end + 1])
     for candidate in candidates:
         try:
             value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    decoder = json.JSONDecoder()
+    for start in _top_level_starts(text):
+        try:
+            value, _ = decoder.raw_decode(text, start)
         except json.JSONDecodeError:
             continue
         if isinstance(value, dict):

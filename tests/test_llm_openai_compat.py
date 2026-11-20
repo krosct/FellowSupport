@@ -16,7 +16,7 @@ from app.adapters.llm.factory import MISSING_KEY_MESSAGE, MissingKeyLLM, build_l
 from app.adapters.llm.fake import FakeLLM
 from app.adapters.llm.openai_compat import OpenAICompatClient
 from app.config import Settings
-from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable
+from app.domain.errors import RATE_LIMIT_MESSAGE, InvalidLLMOutput, LLMRateLimited, LLMUnavailable
 from app.domain.models import Diagnosis
 from app.ports.llm import LLMParams
 
@@ -163,10 +163,13 @@ def test_conteudo_nulo_vira_texto_vazio() -> None:
     assert r.text == "" and r.parsed is None
 
 
-def test_429_vira_llm_rate_limited() -> None:
+def test_429_vira_llm_rate_limited_com_mensagem_amigavel(caplog) -> None:
     servidor = Servidor(httpx2.Response(429, json={"error": {"message": "Rate limit exceeded"}}))
-    with pytest.raises(LLMRateLimited, match="Rate limit exceeded"):
+    with caplog.at_level("WARNING", logger="fellowsupport.llm"), pytest.raises(LLMRateLimited) as exc:
         _cliente(servidor).complete(MENSAGENS, Diagnosis, _params())
+    assert str(exc.value) == RATE_LIMIT_MESSAGE == "Limite do modelo gratuito atingido; tente em instantes."
+    assert "Rate limit exceeded" not in str(exc.value)  # o texto cru do provedor não chega ao usuário...
+    assert "Rate limit exceeded" in caplog.text  # ...mas fica no log para diagnóstico
 
 
 def test_429_e_repetido_pelo_sdk_e_depois_tem_sucesso() -> None:
@@ -210,8 +213,9 @@ def test_resposta_200_com_erro_no_corpo() -> None:
     with pytest.raises(LLMUnavailable, match="modelo caiu"):
         _cliente(Servidor(corpo_erro)).complete(MENSAGENS, Diagnosis, _params())
     limitado = httpx2.Response(200, json={"error": {"message": "muitas", "code": 429}})
-    with pytest.raises(LLMRateLimited, match="muitas"):
+    with pytest.raises(LLMRateLimited) as exc:
         _cliente(Servidor(limitado)).complete(MENSAGENS, Diagnosis, _params())
+    assert str(exc.value) == RATE_LIMIT_MESSAGE
 
 
 def test_mensagem_de_erro_nao_vaza_a_chave() -> None:

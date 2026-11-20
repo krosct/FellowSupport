@@ -6,6 +6,10 @@ CLI para códigos de saída. Erros de bibliotecas externas são convertidos nela
 
 from __future__ import annotations
 
+# Mensagem única do 429: curta, em pt-BR e sem o texto cru do provedor (que vai só para o log). Fica aqui para o
+# adaptador de LLM, a API e a CLI mostrarem exatamente a mesma frase (SSOT).
+RATE_LIMIT_MESSAGE = "Limite do modelo gratuito atingido; tente em instantes."
+
 
 class DomainError(Exception):
     """Base de todas as falhas esperadas da aplicação."""

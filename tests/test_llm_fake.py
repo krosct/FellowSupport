@@ -97,6 +97,15 @@ def test_fake_recusa_schema_sem_simulacao() -> None:
         ("[1, 2, 3]", None),
         ('{"truncado": ', None),
         ("", None),
+        # Chaves soltas na prosa antes ou depois do JSON não atrapalham.
+        ('Use o formato {chave: valor}. Resposta: {"a": 1} Fim {assim}.', {"a": 1}),
+        ('Pensando... {"a": {"b": 2}} e mais {x}', {"a": {"b": 2}}),
+        # Chaves e aspas dentro de strings do JSON não confundem a contagem.
+        ('Aqui: {"a": "texto com } e { e \\" aspa", "b": 2} ok', {"a": 'texto com } e { e " aspa', "b": 2}),
+        # Resposta truncada com objeto interno completo não devolve o interno como se fosse a resposta.
+        ('{"a": {"b": 2}, "c": ', None),
+        ('Segue: {"a": {"b": 2}', None),
+        ("```json\n{\"a\": 1}\n``` e {outra}", {"a": 1}),
     ],
 )
 def test_extract_json_object(texto: str, esperado: dict | None) -> None:
