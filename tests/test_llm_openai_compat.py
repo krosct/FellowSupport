@@ -16,7 +16,7 @@ from app.adapters.llm.factory import MISSING_KEY_MESSAGE, MissingKeyLLM, build_l
 from app.adapters.llm.fake import FakeLLM
 from app.adapters.llm.openai_compat import OpenAICompatClient
 from app.config import Settings
-from app.domain.errors import LLMRateLimited, LLMUnavailable
+from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable
 from app.domain.models import Diagnosis
 from app.ports.llm import LLMParams
 
@@ -82,6 +82,29 @@ def test_sucesso_devolve_texto_json_uso_latencia_e_modelo_efetivo() -> None:
     req = servidor.requisicoes[0]
     assert req.url == "https://provedor.teste/api/v1/chat/completions"
     assert req.headers["authorization"] == f"Bearer {CHAVE}"
+
+
+def test_tokens_de_raciocinio_entram_no_uso_quando_informados() -> None:
+    uso = {"prompt_tokens": 5, "completion_tokens": 50, "total_tokens": 55,
+           "completion_tokens_details": {"reasoning_tokens": 40}}
+    r = _cliente(Servidor(_ok(usage=uso))).complete(MENSAGENS, Diagnosis, _params())
+    assert r.usage == {"prompt_tokens": 5, "completion_tokens": 50, "reasoning_tokens": 40}
+
+
+def test_resposta_cortada_por_max_tokens_sem_json_falha_com_a_causa() -> None:
+    """Modelo de raciocínio que gasta todos os tokens pensando devolve conteúdo vazio com finish_reason=length."""
+    corpo = _resposta(content="", usage={"prompt_tokens": 5, "completion_tokens": 1500, "total_tokens": 1505,
+                                          "completion_tokens_details": {"reasoning_tokens": 1500}})
+    corpo["choices"][0]["finish_reason"] = "length"
+    with pytest.raises(InvalidLLMOutput, match=r"1500 tokens.*LLM_MAX_TOKENS"):
+        _cliente(Servidor(httpx2.Response(200, json=corpo))).complete(MENSAGENS, Diagnosis, _params())
+
+
+def test_corte_por_max_tokens_com_json_completo_e_aceito() -> None:
+    corpo = _resposta()
+    corpo["choices"][0]["finish_reason"] = "length"
+    r = _cliente(Servidor(httpx2.Response(200, json=corpo))).complete(MENSAGENS, Diagnosis, _params())
+    assert r.parsed == JSON_OK
 
 
 def test_modo_json_schema_envia_response_format_estrito() -> None:

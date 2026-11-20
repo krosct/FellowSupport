@@ -85,6 +85,7 @@ def main() -> int:
     parser.add_argument("--profile", default="marta", help="id do perfil (padrão: marta)")
     parser.add_argument("--ticket", default="t-2fa", help="id do ticket (padrão: t-2fa)")
     parser.add_argument("--version", help="versão do prompt (padrão: DEFAULT_PROMPT_VERSION)")
+    parser.add_argument("--max-tokens", type=int, help="limite de tokens da resposta (padrão: LLM_MAX_TOKENS)")
     parser.add_argument("--retries", type=int, default=0, help="retentativas do SDK em 429/5xx (padrão: 0)")
     parser.add_argument("--fake", action="store_true", help="usa o provedor fake (ensaia o script, sem rede)")
     args = parser.parse_args()
@@ -103,8 +104,12 @@ def main() -> int:
     profile = JsonProfileRepo(settings.catalog_dir).get(args.profile)
     ticket = JsonTicketRepo(settings.catalog_dir).get(args.ticket)
     messages = PromptBuilder(registry).build(version, ContentType.DIAGNOSIS, profile, ticket.text)
-    params = LLMParams(model=model, temperature=settings.llm_temperature, max_tokens=settings.llm_max_tokens,
-                       structured_mode=mode)
+    params = LLMParams(
+        model=model,
+        temperature=settings.llm_temperature,
+        max_tokens=args.max_tokens or settings.llm_max_tokens,
+        structured_mode=mode,
+    )
     client = FakeLLM() if args.fake else OpenAICompatClient(
         api_key=key, base_url=settings.llm_base_url, timeout_s=settings.llm_timeout_s, max_retries=args.retries
     )
@@ -113,8 +118,10 @@ def main() -> int:
     smoke_dir = settings.data_dir / SMOKE_DIR
     smoke_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone()
-    report: dict = {"timestamp": stamp.isoformat(timespec="seconds"), "model": model, "mode": mode,
-                    "prompt_version": version, "profile": profile.id, "ticket": ticket.id, "fake": args.fake}
+    report: dict = {
+        "timestamp": stamp.isoformat(timespec="seconds"), "model": model, "mode": mode, "prompt_version": version,
+        "max_tokens": params.max_tokens, "profile": profile.id, "ticket": ticket.id, "fake": args.fake,
+    }
     try:
         result = client.complete(messages, Diagnosis, params)
     except DomainError as exc:

@@ -58,5 +58,7 @@ class LLMClient(Protocol):
 
         Levanta ``LLMUnavailable`` (provedor fora do ar, sem chave, erro de rede) ou ``LLMRateLimited`` (429).
         Uma resposta que não valida contra ``schema`` NÃO é erro aqui: devolve-se o texto e o serviço decide.
+        Exceção: resposta cortada pelo limite de tokens e sem JSON aproveitável levanta ``InvalidLLMOutput``
+        direto, porque o reparo bateria no mesmo limite.
         """
         ...

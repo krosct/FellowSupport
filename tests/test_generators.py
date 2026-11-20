@@ -62,7 +62,9 @@ def test_geracao_com_fake_persiste_o_contrato_completo(settings: Settings) -> No
     assert salvo["prompt_sha256"] == ctx.registry.actual_sha256("v1") == ctx.registry.get("v1").content_sha256
     assert salvo["provider"] == "fake" and salvo["model"] == settings.llm_model
     assert salvo["model_used"] == "fake-llm"
-    assert salvo["params"] == {"temperature": 0.2, "max_tokens": 1500, "structured_mode": "json_schema"}
+    assert salvo["params"] == {
+        "temperature": 0.2, "max_tokens": settings.llm_max_tokens, "structured_mode": "json_schema",
+    }
     assert salvo["attempts"] == 1 and isinstance(salvo["latency_ms"], int)
     assert salvo["usage"]["prompt_tokens"] > 0
     assert [m["role"] for m in salvo["prompt_messages"]] == ["system", "user"]

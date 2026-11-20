@@ -49,7 +49,8 @@ class Settings(BaseSettings):
     llm_model: str = "baidu/ernie-5.5-flash-preview:free"
     llm_judge_model: str = ""  # vazio = mesmo modelo de geração
     llm_temperature: float = 0.2
-    llm_max_tokens: int = 1500
+    # Folga para modelos de raciocínio, que gastam milhares de tokens "pensando" antes do JSON (ADR 0026).
+    llm_max_tokens: int = 8000
     llm_timeout_s: float = 60
     llm_max_retries: int = 2
     llm_structured_mode: StructuredMode = "json_schema"

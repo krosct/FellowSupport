@@ -10,7 +10,6 @@ Responsabilidades, todas escondidas atrás da porta ``LLMClient``:
 from __future__ import annotations
 
 import json
-import logging
 import time
 from collections.abc import Sequence
 from typing import Any
@@ -18,11 +17,9 @@ from typing import Any
 import openai
 from pydantic import BaseModel
 
-from app.domain.errors import LLMRateLimited, LLMUnavailable
+from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable
 from app.domain.llm_output import extract_json_object
 from app.ports.llm import ChatMessage, LLMParams, LLMResult, StructuredMode
-
-logger = logging.getLogger("fellowsupport.llm")
 
 # Tamanho máximo da mensagem de erro do provedor repassada ao usuário (evita despejar HTML ou corpos enormes).
 _MAX_ERROR_CHARS = 300
@@ -135,17 +132,30 @@ class OpenAICompatClient:
 
         choice = choices[0]
         text = (choice.message.content or "").strip()
-        if choice.finish_reason == "length":
-            logger.warning("Resposta cortada por max_tokens; o JSON pode estar incompleto.")
+        parsed = extract_json_object(text)
         usage = {}
         if response.usage is not None:
             usage = {
                 "prompt_tokens": response.usage.prompt_tokens or 0,
                 "completion_tokens": response.usage.completion_tokens or 0,
             }
+            # Modelos de raciocínio gastam parte de max_tokens "pensando"; registrar isso explica respostas
+            # vazias ou cortadas. Só entra quando o provedor informa e é maior que zero.
+            details = getattr(response.usage, "completion_tokens_details", None)
+            reasoning = getattr(details, "reasoning_tokens", None) or 0
+            if reasoning:
+                usage["reasoning_tokens"] = reasoning
+        if choice.finish_reason == "length" and parsed is None:
+            # Cortada pelo limite de tokens e sem JSON aproveitável: o reparo bateria no mesmo limite e gastaria
+            # outra chamada, então falha já com a causa e o remédio. Modelos de raciocínio costumam cair aqui.
+            thinking = usage.get("reasoning_tokens", 0)
+            raise InvalidLLMOutput(
+                f"A resposta foi cortada pelo limite de {usage.get('completion_tokens', 0)} tokens "
+                f"({thinking} gastos em raciocínio) antes de completar o JSON. Aumente LLM_MAX_TOKENS."
+            )
         return LLMResult(
             text=text,
-            parsed=extract_json_object(text),
+            parsed=parsed,
             usage=usage,
             latency_ms=latency_ms,
             model_used=response.model or "",
