@@ -10,6 +10,7 @@ import pytest
 from app.adapters.storage import json_files
 from app.adapters.storage.json_files import JsonRunRepo, atomic_write_json, display_path
 from app.config import BASE_DIR
+from app.domain.errors import NotFound
 from app.domain.models import RunRecord
 
 
@@ -57,3 +58,55 @@ def test_escrita_atomica_nao_deixa_temporario_nem_corrompe_o_anterior(tmp_path: 
 def test_display_path_e_relativo_dentro_do_repositorio_e_absoluto_fora() -> None:
     assert display_path(BASE_DIR / "var" / "runs" / "a.json") == "var/runs/a.json"
     assert display_path(Path("/tmp/outro/a.json")) == "/tmp/outro/a.json"
+
+
+# --- leitura: get e iter_recent -----------------------------------------------------------------------
+
+
+def test_get_devolve_o_registro_e_o_caminho(tmp_path: Path, make_record) -> None:
+    repo = JsonRunRepo(tmp_path)
+    registro = make_record(run_id="aaaaaaaaaaaa")
+    caminho = repo.save(registro)
+    guardado = repo.get("aaaaaaaaaaaa")
+    assert guardado.record == registro and guardado.saved_path == caminho
+
+
+@pytest.mark.parametrize(
+    "run_id", ["nao-existe", "bbbbbbbbbbbb", "*", "../x", "aaaaaaaaaaaa/../..", "AAAAAAAAAAAA", ""]
+)
+def test_get_com_id_inexistente_ou_malformado_e_not_found(tmp_path: Path, make_record, run_id: str) -> None:
+    repo = JsonRunRepo(tmp_path)
+    repo.save(make_record(run_id="aaaaaaaaaaaa"))
+    with pytest.raises(NotFound):
+        repo.get(run_id)
+
+
+def test_get_de_arquivo_corrompido_e_not_found(tmp_path: Path, make_record) -> None:
+    repo = JsonRunRepo(tmp_path)
+    Path(repo.save(make_record(run_id="aaaaaaaaaaaa"))).write_text("{ não é json", encoding="utf-8")
+    with pytest.raises(NotFound, match="ilegível"):
+        repo.get("aaaaaaaaaaaa")
+
+
+def test_iter_recent_ordena_do_mais_novo_para_o_mais_antigo(tmp_path: Path, make_record) -> None:
+    repo = JsonRunRepo(tmp_path)
+    repo.save(make_record(run_id="aaaaaaaaaaaa", timestamp="2026-11-19T10:00:00-03:00"))
+    repo.save(make_record(run_id="bbbbbbbbbbbb", timestamp="2026-11-20T09:00:00-03:00"))
+    repo.save(make_record(run_id="cccccccccccc", timestamp="2026-11-20T14:00:00-03:00"))
+    assert [s.record.run_id for s in repo.iter_recent()] == ["cccccccccccc", "bbbbbbbbbbbb", "aaaaaaaaaaaa"]
+
+
+def test_iter_recent_desempata_o_mesmo_segundo_pela_ordem_de_gravacao(tmp_path: Path, make_record) -> None:
+    repo = JsonRunRepo(tmp_path)
+    # Ids em ordem alfabética inversa à de gravação: o desempate não pode ser pelo id.
+    for run_id in ("ffffffffffff", "eeeeeeeeeeee", "dddddddddddd"):
+        repo.save(make_record(run_id=run_id))
+    assert [s.record.run_id for s in repo.iter_recent()] == ["dddddddddddd", "eeeeeeeeeeee", "ffffffffffff"]
+
+
+def test_iter_recent_pula_arquivo_ilegivel_e_sem_pasta_devolve_vazio(tmp_path: Path, make_record) -> None:
+    repo = JsonRunRepo(tmp_path)
+    assert list(repo.iter_recent()) == []
+    Path(repo.save(make_record(run_id="aaaaaaaaaaaa"))).write_text("lixo", encoding="utf-8")
+    repo.save(make_record(run_id="bbbbbbbbbbbb", timestamp="2026-11-20T15:00:00-03:00"))
+    assert [s.record.run_id for s in repo.iter_recent()] == ["bbbbbbbbbbbb"]
