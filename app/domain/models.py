@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class _LabeledEnum(StrEnum):
@@ -88,13 +88,87 @@ class Ticket(BaseModel):
     text: str = Field(min_length=1, description="Relato original, tratado sempre como dado (ADR 0022).")
 
 
-# --- Schemas de saída (stubs documentados) ---------------------------------------------------------
-# As Etapas 1 e 2 completam os campos. Já ficam declarados para o mapa tipo -> schema existir desde já.
+# --- Schemas de saída ------------------------------------------------------------------------------
+# O schema do diagnóstico está completo (Etapa 1); os demais seguem como stubs até a Etapa 2.
+
+# Limites do diagnóstico em um único lugar: o schema os valida e o prompt os recebe como variáveis.
+DIAGNOSIS_MIN_HYPOTHESES = 2
+DIAGNOSIS_MAX_HYPOTHESES = 4
+DIAGNOSIS_MAX_MISSING_INFO = 5
 
 
-class Diagnosis(BaseModel):
-    """Diagnóstico estruturado. Etapa 1 define: hipóteses, evidências (a favor e contra), dados faltantes e
-    conclusão provável com nível de confiança. Sem cadeia de raciocínio (item 1 do PDF)."""
+class Confidence(_LabeledEnum):
+    """Confiança do modelo na conclusão provável. A ordem de declaração vai da menor para a maior."""
+
+    BAIXA = "baixa"
+    MEDIA = "média"
+    ALTA = "alta"
+
+
+class _StrictModel(BaseModel):
+    """Base dos schemas de saída: campos extras são recusados (``additionalProperties: false`` no JSON Schema,
+    exigido pelo modo ``json_schema`` estrito) e textos vazios ou só com espaços são aparados."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class Hypothesis(_StrictModel):
+    """Uma causa possível do problema, com os sinais do ticket que a sustentam e os que a enfraquecem."""
+
+    id: str = Field(min_length=1, description='Identificador curto e único, como "H1".')
+    description: str = Field(min_length=1, description="Causa possível, em uma ou duas frases.")
+    probability_pct: int = Field(
+        ge=0, le=100, description="Probabilidade estimada em percentual inteiro, de 0 a 100."
+    )
+    evidence_for: list[str] = Field(description="Sinais do ticket que sustentam a hipótese.")
+    evidence_against: list[str] = Field(description="Sinais do ticket que enfraquecem a hipótese.")
+
+
+class MissingInfo(_StrictModel):
+    """Dado que o ticket não traz e que ajudaria a decidir entre as hipóteses."""
+
+    item: str = Field(min_length=1, description="Informação que falta.")
+    why_it_matters: str = Field(min_length=1, description="Por que ela muda o diagnóstico.")
+
+
+class Conclusion(_StrictModel):
+    """Hipótese mais provável, com o nível de confiança. Não contém cadeia de raciocínio (item 1 do PDF)."""
+
+    summary: str = Field(min_length=1, description="Conclusão provável em uma ou duas frases.")
+    hypothesis_id: str = Field(min_length=1, description="Id da hipótese escolhida, igual ao de uma das hipóteses.")
+    confidence: Confidence
+
+
+class Diagnosis(_StrictModel):
+    """Diagnóstico estruturado e verificável: hipóteses, evidências, dados faltantes, conclusão e um resumo
+    para o cliente. Deliberadamente sem raciocínio interno do modelo (item 1 do PDF)."""
+
+    hypotheses: list[Hypothesis] = Field(
+        min_length=DIAGNOSIS_MIN_HYPOTHESES,
+        max_length=DIAGNOSIS_MAX_HYPOTHESES,
+        description="Causas possíveis, da mais para a menos provável.",
+    )
+    available_evidence: list[str] = Field(min_length=1, description="Fatos observáveis que o ticket já informa.")
+    missing_information: list[MissingInfo] = Field(
+        max_length=DIAGNOSIS_MAX_MISSING_INFO, description="Dados que faltam para fechar o diagnóstico."
+    )
+    probable_conclusion: Conclusion
+    customer_summary: str = Field(
+        min_length=1, description="Resumo do diagnóstico para o cliente, no tom adequado ao perfil dele."
+    )
+
+    @model_validator(mode="after")
+    def _check_references(self) -> Diagnosis:
+        """Garante ids de hipótese únicos e uma conclusão que aponta para uma hipótese existente.
+
+        Essas regras cruzadas não cabem no JSON Schema; falhar aqui aciona o reparo com uma mensagem clara.
+        """
+        ids = [h.id for h in self.hypotheses]
+        if len(ids) != len(set(ids)):
+            raise ValueError("os ids das hipóteses devem ser únicos")
+        if self.probable_conclusion.hypothesis_id not in ids:
+            raise ValueError("probable_conclusion.hypothesis_id deve ser o id de uma das hipóteses")
+        return self
 
 
 class ResolutionSteps(BaseModel):
