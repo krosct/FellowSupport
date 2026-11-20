@@ -3,42 +3,22 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
-from pydantic import BaseModel
 
 from app.adapters.llm.fake import FakeLLM
 from app.config import Settings
 from app.container import build_container
 from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable, NotFound, ValidationFailed
-from app.domain.llm_output import extract_json_object
 from app.domain.models import FREE_TICKET_TITLE, ContentType, Diagnosis, RunRecord
-from app.ports.llm import ChatMessage, LLMParams, LLMResult
+from app.ports.llm import LLMParams
 from app.services.generators import GenerationContext, generate
+from tests.support import LLMRoteirizado
 
 FIXO = datetime(2026, 11, 20, 14, 3, 11, tzinfo=ZoneInfo("America/Sao_Paulo"))
-
-
-class LLMRoteirizado:
-    """LLM de teste: devolve (ou levanta) as respostas na ordem e guarda as mensagens recebidas."""
-
-    def __init__(self, *respostas: str | Exception) -> None:
-        self._respostas = list(respostas)
-        self.chamadas: list[list[ChatMessage]] = []
-
-    def complete(self, messages: Sequence[ChatMessage], schema: type[BaseModel], params: LLMParams) -> LLMResult:
-        self.chamadas.append([dict(m) for m in messages])  # type: ignore[misc]
-        item = self._respostas.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return LLMResult(
-            text=item, parsed=extract_json_object(item), usage={"prompt_tokens": 10, "completion_tokens": 5},
-            latency_ms=1, model_used="vendor/efetivo",
-        )
 
 
 def _diagnostico_valido() -> str:
