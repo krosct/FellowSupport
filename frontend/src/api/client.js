@@ -42,8 +42,8 @@ export const getTickets = () => request("/api/tickets");
 export const getPromptVersions = () => request("/api/prompt-versions");
 
 /**
- * Gera um conteúdo. `payload`: `{ profile_id, ticket_id | ticket_text, content_type?, prompt_version? }`.
- * Devolve `{ saved_path, run }`; o tipo padrão da API é o diagnóstico.
+ * Gera um conteúdo. `payload`: `{ profile_id, ticket_id | ticket_text, content_type?, prompt_version?, use_cache? }`.
+ * Devolve `{ saved_path, run }`; o tipo padrão da API é o diagnóstico. `use_cache` (padrão `true` na API) liga o cache.
  */
 export const generate = (payload) =>
   request("/api/generate", {
@@ -51,3 +51,19 @@ export const generate = (payload) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+/**
+ * Histórico de execuções, da mais recente para a mais antiga. `filters` aceita `customer_id`, `ticket_id`,
+ * `content_type`, `prompt_version`, `status`, `cache_key` e `limit`; valores vazios são ignorados.
+ */
+export function getRuns(filters = {}) {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== "" && value != null) query.set(key, value);
+  });
+  const suffix = query.toString();
+  return request(suffix ? `/api/runs?${suffix}` : "/api/runs");
+}
+
+/** Detalhe de uma execução: `{ saved_path, run }`, a mesma forma da resposta de `generate`. */
+export const getRun = (runId) => request(`/api/runs/${encodeURIComponent(runId)}`);

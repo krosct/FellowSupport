@@ -36,7 +36,9 @@ cd frontend && npm install && npm run build && cd ..   # gera frontend/dist
 
 Abra http://127.0.0.1:8000/. A API serve o build do front em `/`. Escolha o perfil, o ticket e o conteúdo (diagnóstico, passo a passo,
 perguntas de esclarecimento, resumo visual do fluxo ou **Todos**) e clique em **Gerar**: o site mostra o conteúdo e o caminho
-do JSON salvo. Em "Todos" os quatro são gerados em paralelo, em abas, cada um com o seu JSON; a falha de um não afeta os outros. Rotas: `GET /healthz`, `GET /api/meta`, `GET /api/profiles`,
+do JSON salvo. A opção **Usar cache** (ligada por padrão) reaproveita execuções equivalentes: o resultado ganha o selo **Cache** com a
+latência e o link da execução de origem. A aba **Histórico** (`#/historico`) lista as execuções salvas com filtros por cliente, ticket,
+conteúdo, versão e status; clicar numa execução abre o detalhe (`#/historico/<id>`), que é um link copiável. Em "Todos" os quatro são gerados em paralelo, em abas, cada um com o seu JSON; a falha de um não afeta os outros. Rotas: `GET /healthz`, `GET /api/meta`, `GET /api/profiles`,
 `GET /api/tickets`, `GET /api/prompt-versions` e `POST /api/generate` (`content_type` com os quatro tipos ou `all`; `use_cache`, padrão `true`;
 documentação interativa em `/api/docs`).
 

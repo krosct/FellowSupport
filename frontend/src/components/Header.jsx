@@ -1,7 +1,7 @@
 import Badge from "./Badge.jsx";
 
-/** Cabeçalho do app: marca, descrição curta e o provedor de LLM em uso (vem de /api/meta). */
-export default function Header({ llm }) {
+/** Cabeçalho do app: marca, descrição curta, o provedor de LLM em uso (vem de /api/meta) e, opcional, a navegação. */
+export default function Header({ llm, nav }) {
   return (
     <header className="app-header">
       <div className="container app-header-inner">
@@ -14,12 +14,9 @@ export default function Header({ llm }) {
             <p className="hint">Suporte técnico adaptado ao perfil de cada cliente</p>
           </div>
         </div>
-        {llm && (
-          <Badge kind="neutral">
-            Provedor: {llm.provider}
-          </Badge>
-        )}
+        {llm && <Badge kind="neutral">Provedor: {llm.provider}</Badge>}
       </div>
+      {nav && <nav className="container app-nav" aria-label="Seções">{nav}</nav>}
     </header>
   );
 }
