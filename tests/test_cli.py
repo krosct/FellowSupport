@@ -15,7 +15,7 @@ from app.config import BASE_DIR, Settings
 from app.container import build_container
 from app.domain.errors import LLMRateLimited, LLMUnavailable
 from app.domain.models import Diagnosis
-from tests.support import LLMRoteirizado
+from tests.support import LLMPorSchema, LLMRoteirizado
 
 
 @pytest.fixture
@@ -197,3 +197,45 @@ def test_generate_como_modulo_com_fake(tmp_path) -> None:
     assert "JSON salvo em:" in r.stdout
     [arquivo] = list(tmp_path.rglob("*.json"))
     assert json.loads(arquivo.read_text(encoding="utf-8"))["provider"] == "fake"
+
+
+# --- generate --type all ----------------------------------------------------------------------------
+
+
+def test_generate_all_imprime_os_quatro_tipos_e_um_json_por_tipo(container, settings, capsys) -> None:
+    assert main(["generate", "--customer", "marta", "--ticket", "t-2fa", "--type", "all"], container) == EXIT_OK
+    saida = capsys.readouterr().out
+    for titulo in ("DIAGNÓSTICO", "PASSO A PASSO", "PERGUNTAS DE ESCLARECIMENTO", "RESUMO VISUAL DO FLUXO"):
+        assert titulo in saida
+    for trecho in ("HIPÓTESES", "PASSOS", "DÁ PARA AVANÇAR", "├─ Sim ─▶"):
+        assert trecho in saida
+    salvos = _salvos(settings)
+    assert len(salvos) == 4 and all(str(a) in saida for a in salvos)
+
+
+def test_generate_all_json(container, capsys) -> None:
+    argv = ["generate", "--customer", "rafael", "--ticket", "t-csv", "--type", "all", "--json"]
+    assert main(argv, container) == EXIT_OK
+    itens = json.loads(capsys.readouterr().out)["results"]
+    assert [i["content_type"] for i in itens] == [
+        "diagnosis", "resolution_steps", "clarifying_questions", "flow_summary",
+    ]
+    assert all(i["error"] is None and i["saved_path"].endswith(".json") for i in itens)
+
+
+def test_generate_all_com_falha_parcial_imprime_o_resto_e_sai_com_codigo_do_provedor(settings, capsys) -> None:
+    from app.domain.models import ResolutionSteps
+
+    llm = LLMPorSchema({ResolutionSteps: LLMUnavailable("fora do ar")})
+    codigo = main(["generate", "--customer", "marta", "--ticket", "t-2fa", "--type", "all"],
+                  build_container(settings, llm=llm))
+    saida, erro = capsys.readouterr()
+    assert codigo == EXIT_LLM and "fora do ar" in erro
+    assert "HIPÓTESES" in saida and "├─ Sim ─▶" in saida  # os outros tipos saíram
+    assert "FALHOU: fora do ar" in saida and "JSON de erro salvo em" in saida
+    assert len(_salvos(settings)) == 4
+
+
+def test_generate_all_com_entrada_invalida_nao_gera(container, settings, capsys) -> None:
+    assert main(["generate", "--customer", "x", "--ticket", "t-2fa", "--type", "all"], container) == EXIT_NOT_FOUND
+    assert _salvos(settings) == []

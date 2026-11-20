@@ -12,8 +12,8 @@ from app.adapters.api.main import ERROR_STATUS, create_app
 from app.config import Settings
 from app.container import build_container
 from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable, NotFound, ValidationFailed
-from app.domain.models import OUTPUT_SCHEMAS, ContentType, Diagnosis
-from tests.support import LLMRoteirizado
+from app.domain.models import OUTPUT_SCHEMAS, ContentType, Diagnosis, FlowSummary, ResolutionSteps
+from tests.support import LLMPorSchema, LLMRoteirizado
 
 CORPO = {"profile_id": "marta", "ticket_id": "t-2fa", "content_type": "diagnosis"}
 
@@ -149,3 +149,51 @@ def test_meta_traz_niveis_de_confianca_e_titulo_do_ticket_livre(settings: Settin
     assert [o["value"] for o in meta["confidence_levels"]] == ["baixa", "média", "alta"]
     assert [o["label"] for o in meta["confidence_levels"]] == ["Baixa", "Média", "Alta"]
     assert meta["free_ticket_title"] == "Ticket digitado"
+
+
+# --- modo all ---------------------------------------------------------------------------------------
+
+
+def test_all_devolve_um_item_por_tipo_com_o_json_de_cada_execucao(settings: Settings) -> None:
+    r = _cliente(settings).post("/api/generate", json={**CORPO, "content_type": "all"})
+    assert r.status_code == 200
+    itens = r.json()["results"]
+    assert [i["content_type"] for i in itens] == [t.value for t in ContentType]
+    arquivos = {str(a) for a in _arquivos(settings)}
+    assert len(arquivos) == 4
+    for item in itens:
+        assert item["error"] is None and item["run"]["status"] == "ok"
+        assert item["saved_path"] in arquivos
+        OUTPUT_SCHEMAS[ContentType(item["content_type"])].model_validate(item["run"]["output"])
+
+
+def test_all_com_falha_parcial_responde_200_com_o_erro_do_tipo(settings: Settings) -> None:
+    llm = LLMPorSchema({ResolutionSteps: LLMUnavailable("fora do ar"), FlowSummary: "{}"})
+    r = _cliente(settings, llm).post("/api/generate", json={**CORPO, "content_type": "all"})
+    assert r.status_code == 200
+    por_tipo = {i["content_type"]: i for i in r.json()["results"]}
+    assert por_tipo["diagnosis"]["run"]["status"] == "ok" and por_tipo["diagnosis"]["error"] is None
+    assert por_tipo["resolution_steps"]["error"] == {"type": "LLMUnavailable", "message": "fora do ar"}
+    assert por_tipo["resolution_steps"]["run"]["status"] == "error"  # o JSON de erro também foi gravado
+    assert por_tipo["flow_summary"]["error"]["type"] == "InvalidLLMOutput"
+    assert len(_arquivos(settings)) == 4
+
+
+def test_all_com_todas_as_falhas_responde_com_o_erro_mapeado(settings: Settings) -> None:
+    llm = LLMPorSchema({t: LLMRateLimited("429") for t in OUTPUT_SCHEMAS.values()})
+    r = _cliente(settings, llm).post("/api/generate", json={**CORPO, "content_type": "all"})
+    assert r.status_code == 429 and "429" in r.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    ("corpo", "status"),
+    [
+        ({**CORPO, "profile_id": "ninguem"}, 404),
+        ({**CORPO, "ticket_text": "x"}, 422),
+        ({**CORPO, "prompt_version": "v99"}, 404),
+    ],
+)
+def test_all_com_entrada_invalida_recusa_antes_de_gerar(settings: Settings, corpo: dict, status: int) -> None:
+    llm = LLMPorSchema({})
+    r = _cliente(settings, llm).post("/api/generate", json={**corpo, "content_type": "all"})
+    assert r.status_code == status and llm.chamadas == [] and _arquivos(settings) == []

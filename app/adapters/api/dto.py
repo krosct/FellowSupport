@@ -6,9 +6,9 @@ modelos do domínio; só ``/api/meta`` precisa de um formato dedicado.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
-from app.domain.models import ContentType, RunRecord
+from app.domain.models import ALL_OPTION_VALUE, ContentType, RunError, RunRecord
 from app.domain.prompting.registry import PromptVersion
 
 
@@ -68,6 +68,7 @@ class MetaOut(BaseModel):
 
     enums: EnumsOut
     content_types: list[OptionOut]
+    all_option: OptionOut
     rubric: RubricOut
     confidence_levels: list[OptionOut]
     default_prompt_version: str
@@ -85,18 +86,45 @@ class PromptVersionOut(PromptVersion):
 class GenerateIn(BaseModel):
     """Corpo de ``POST /api/generate``: perfil, ticket (do catálogo **ou** texto livre) e tipo de conteúdo.
 
-    A regra "exatamente um dos dois tickets" é validada no serviço, para API e CLI darem a mesma mensagem.
+    ``content_type`` aceita os quatro tipos ou ``"all"`` (todos, em paralelo). A regra "exatamente um dos dois
+    tickets" é validada no serviço, para API e CLI darem a mesma mensagem.
     """
 
     profile_id: str
     ticket_id: str | None = None
     ticket_text: str | None = None
-    content_type: ContentType = ContentType.DIAGNOSIS
+    content_type: str = ContentType.DIAGNOSIS.value
     prompt_version: str | None = None
+
+    @field_validator("content_type")
+    @classmethod
+    def _known_type(cls, value: str) -> str:
+        """Só os valores de ``ContentType`` e a opção "todos"; o conjunto vem do domínio (SSOT)."""
+        allowed = [*(t.value for t in ContentType), ALL_OPTION_VALUE]
+        if value not in allowed:
+            raise ValueError(f"content_type deve ser um de: {', '.join(allowed)}")
+        return value
 
 
 class GenerateOut(BaseModel):
-    """Resposta de ``POST /api/generate``: o registro da execução e o caminho do JSON salvo."""
+    """Resposta de ``POST /api/generate`` para um tipo: o registro da execução e o caminho do JSON salvo."""
 
     saved_path: str
     run: RunRecord
+
+
+class GenerateItemOut(BaseModel):
+    """Um tipo no modo ``all``: com sucesso traz ``run``; com falha, ``error``. ``saved_path`` aponta o JSON da
+    execução (que também existe, com ``status: "error"``, quando o erro veio do modelo). Ambos podem faltar só
+    se a falha ocorreu antes de existir execução."""
+
+    content_type: ContentType
+    saved_path: str | None = None
+    run: RunRecord | None = None
+    error: RunError | None = None
+
+
+class GenerateAllOut(BaseModel):
+    """Resposta de ``POST /api/generate`` com ``content_type: "all"``: um item por tipo, na ordem de ``ContentType``."""
+
+    results: list[GenerateItemOut]

@@ -49,6 +49,7 @@ def test_meta_traz_enums_tipos_rubrica_e_versao(client: TestClient) -> None:
     assert [o["value"] for o in meta["content_types"]] == [
         "diagnosis", "resolution_steps", "clarifying_questions", "flow_summary",
     ]
+    assert meta["all_option"] == {"value": "all", "label": "Todos"}
     assert [c["key"] for c in meta["rubric"]["criteria"]] == list(rubric.CRITERIA_KEYS)
     assert meta["rubric"]["scale"]["min"] == 1 and meta["rubric"]["scale"]["max"] == 5
     assert meta["default_prompt_version"] == "v1"

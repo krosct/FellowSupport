@@ -1,7 +1,7 @@
 """CLI do FellowSupport (argparse, stdlib). Execução: ``python -m app.adapters.cli.main <subcomando>``.
 
-Subcomandos: ``profiles``, ``tickets``, ``versions`` e ``generate``. As Etapas seguintes acrescentam ``history``,
-``compare`` etc.
+Subcomandos: ``profiles``, ``tickets``, ``versions`` e ``generate`` (``--type`` com os quatro tipos ou ``all``).
+As Etapas seguintes acrescentam ``history``, ``compare`` etc.
 Códigos de saída: 0 sucesso · 1 erro de uso ou validação · 2 não encontrado · 3 provedor de LLM indisponível.
 """
 
@@ -25,8 +25,8 @@ from app.domain.errors import (
     NotFound,
     ValidationFailed,
 )
-from app.domain.models import ContentType
-from app.services.generators import generate
+from app.domain.models import ALL_OPTION_VALUE, ContentType
+from app.services.generators import generate, generate_all
 
 EXIT_OK = 0
 EXIT_USAGE = 1
@@ -73,7 +73,8 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument("--text", help="texto livre do ticket")
     gen.add_argument(
         "--type", dest="content_type", default=ContentType.DIAGNOSIS.value,
-        choices=[t.value for t in ContentType], help="tipo de conteúdo (padrão: diagnosis)",
+        choices=[*(t.value for t in ContentType), ALL_OPTION_VALUE],
+        help="tipo de conteúdo; 'all' gera os quatro em paralelo (padrão: diagnosis)",
     )
     gen.add_argument("--version", help="versão do prompt (padrão: DEFAULT_PROMPT_VERSION)")
     gen.add_argument("--json", action="store_true", help="saída em JSON")
@@ -128,8 +129,55 @@ def _cmd_versions(container: Container, args: argparse.Namespace) -> None:
               f"{v.description}{mark}")
 
 
-def _cmd_generate(container: Container, args: argparse.Namespace) -> None:
+def _exit_code(exc: DomainError) -> int:
+    """Código de saída de uma exceção do domínio (ADR 0018)."""
+    return next((code for cls, code in ERROR_EXIT_CODES.items() if isinstance(exc, cls)), EXIT_USAGE)
+
+
+def _cmd_generate_all(container: Container, args: argparse.Namespace) -> int:
+    """Gera os quatro tipos em paralelo e imprime um bloco por tipo, com o caminho do JSON de cada execução.
+
+    Se algum tipo falhar, os demais são impressos mesmo assim e o código de saída é o da primeira falha.
+    """
+    batch = generate_all(
+        container.generation,
+        profile_id=args.customer,
+        ticket_id=args.ticket,
+        ticket_text=args.text,
+        prompt_version=args.version,
+    )
+    if args.json:
+        _dump({"results": [
+            {
+                "content_type": item.content_type.value,
+                "saved_path": item.result.saved_path if item.result else None,
+                "run": item.result.record.model_dump(mode="json") if item.result else None,
+                "error": {"type": type(item.error).__name__, "message": str(item.error)} if item.error else None,
+            }
+            for item in batch.items
+        ]})
+    else:
+        first_ok = next((item.result.record for item in batch.items if item.ok), None)
+        if first_ok is not None:
+            print(render_run_header(first_ok))
+        for item in batch.items:
+            print(f"\n{'=' * TEXT_WIDTH}\n{item.content_type.label.upper()}\n{'=' * TEXT_WIDTH}")
+            if item.ok:
+                print(render_output(item.result.record))
+                print(f"\nJSON salvo em: {item.result.saved_path}")
+            else:
+                print(f"FALHOU: {item.error}")
+                if item.result:
+                    print(f"JSON de erro salvo em: {item.result.saved_path}")
+    for exc in batch.errors:
+        print(f"erro: {exc}", file=sys.stderr)
+    return _exit_code(batch.errors[0]) if batch.errors else EXIT_OK
+
+
+def _cmd_generate(container: Container, args: argparse.Namespace) -> int | None:
     """Gera o conteúdo pedido, imprime a saída legível (ou JSON) e o caminho do arquivo salvo."""
+    if args.content_type == ALL_OPTION_VALUE:
+        return _cmd_generate_all(container, args)
     result = generate(
         container.generation,
         content_type=ContentType(args.content_type),
@@ -141,12 +189,13 @@ def _cmd_generate(container: Container, args: argparse.Namespace) -> None:
     record = result.record
     if args.json:
         _dump({"saved_path": result.saved_path, "run": record.model_dump(mode="json")})
-        return
+        return None
     print(render_run_header(record))
     print()
     print(render_output(record))
     print()
     print(f"JSON salvo em: {result.saved_path}")
+    return None
 
 
 # Subcomando -> função que o executa.
@@ -164,11 +213,10 @@ def main(argv: Sequence[str] | None = None, container: Container | None = None) 
     try:
         container = container or build_container()
         logging.basicConfig(level=container.settings.log_level, format="%(levelname)s %(name)s: %(message)s")
-        _COMMANDS[args.command](container, args)
+        return _COMMANDS[args.command](container, args) or EXIT_OK
     except DomainError as exc:
         print(f"erro: {exc}", file=sys.stderr)
-        return next((code for cls, code in ERROR_EXIT_CODES.items() if isinstance(exc, cls)), EXIT_USAGE)
-    return EXIT_OK
+        return _exit_code(exc)
 
 
 if __name__ == "__main__":

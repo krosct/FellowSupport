@@ -13,7 +13,9 @@ from fastapi import APIRouter, Depends, Request
 
 from app.adapters.api.dto import (
     EnumsOut,
+    GenerateAllOut,
     GenerateIn,
+    GenerateItemOut,
     GenerateOut,
     LimitsOut,
     LlmInfoOut,
@@ -25,16 +27,19 @@ from app.adapters.api.dto import (
 from app.container import Container
 from app.domain import rubric
 from app.domain.models import (
+    ALL_OPTION_LABEL,
+    ALL_OPTION_VALUE,
     FREE_TICKET_TITLE,
     Channel,
     CommStyle,
     Confidence,
     ContentType,
     CustomerProfile,
+    RunError,
     TechLevel,
     Ticket,
 )
-from app.services.generators import generate
+from app.services.generators import BatchResult, generate, generate_all
 
 health_router = APIRouter(tags=["saúde"])
 api_router = APIRouter(prefix="/api")
@@ -71,6 +76,7 @@ def meta(container: ContainerDep) -> MetaOut:
             tech_level=_options(TechLevel), comm_style=_options(CommStyle), channel=_options(Channel)
         ),
         content_types=_options(ContentType),
+        all_option=OptionOut(value=ALL_OPTION_VALUE, label=ALL_OPTION_LABEL),
         confidence_levels=_options(Confidence),
         rubric=RubricOut.model_validate(rubric.rubric_as_dict()),
         default_prompt_version=settings.default_prompt_version,
@@ -102,16 +108,47 @@ def list_prompt_versions(container: ContainerDep) -> list[PromptVersionOut]:
     ]
 
 
-@api_router.post("/generate", response_model=GenerateOut, tags=["geração"])
-def generate_content(body: GenerateIn, container: ContainerDep) -> GenerateOut:
-    """Gera um conteúdo para o perfil e o ticket e devolve a execução salva e o caminho do JSON.
+def _batch_out(batch: BatchResult) -> GenerateAllOut:
+    """Converte o resultado do modo ``all`` no formato da API, com sucesso ou erro por tipo."""
+    results = []
+    for item in batch.items:
+        if item.ok:
+            results.append(GenerateItemOut(
+                content_type=item.content_type, saved_path=item.result.saved_path, run=item.result.record
+            ))
+            continue
+        error = RunError(type=type(item.error).__name__, message=str(item.error))
+        results.append(GenerateItemOut(
+            content_type=item.content_type,
+            saved_path=item.result.saved_path if item.result else None,
+            run=item.result.record if item.result else None,
+            error=error,
+        ))
+    return GenerateAllOut(results=results)
 
-    Nesta etapa só ``content_type: diagnosis`` é aceito (outros tipos respondem 422). Erros do domínio viram
-    HTTP pelo tratador único de ``main.py``: 404, 422, 429, 502 e 503.
+
+@api_router.post("/generate", response_model=GenerateOut | GenerateAllOut, tags=["geração"])
+def generate_content(body: GenerateIn, container: ContainerDep) -> GenerateOut | GenerateAllOut:
+    """Gera um conteúdo (ou os quatro, com ``content_type: "all"``) e devolve a execução salva e o caminho do JSON.
+
+    No modo ``all`` a resposta traz um item por tipo e a falha de um tipo não afeta os outros. Só se **todos**
+    falharem a rota responde com o erro do primeiro (mesmo mapeamento do tipo único), porque nada foi gerado.
+    Erros do domínio viram HTTP pelo tratador único de ``main.py``: 404, 422, 429, 502 e 503.
     """
+    if body.content_type == ALL_OPTION_VALUE:
+        batch = generate_all(
+            container.generation,
+            profile_id=body.profile_id,
+            ticket_id=body.ticket_id,
+            ticket_text=body.ticket_text,
+            prompt_version=body.prompt_version,
+        )
+        if len(batch.errors) == len(batch.items):
+            raise batch.errors[0]
+        return _batch_out(batch)
     result = generate(
         container.generation,
-        content_type=body.content_type,
+        content_type=ContentType(body.content_type),
         profile_id=body.profile_id,
         ticket_id=body.ticket_id,
         ticket_text=body.ticket_text,
