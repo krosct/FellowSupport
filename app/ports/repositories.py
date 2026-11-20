@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain.models import CustomerProfile, Ticket
+from app.domain.models import CustomerProfile, RunRecord, Ticket
 
 
 class ProfileRepo(Protocol):
@@ -56,4 +56,12 @@ class PromptStore(Protocol):
 
     def read_meta(self, version: str) -> dict:
         """Conteúdo do ``meta.json`` da versão. Levanta ``NotFound`` ou ``ValidationFailed`` (JSON inválido)."""
+        ...
+
+
+class RunRepo(Protocol):
+    """Persistência das execuções: um arquivo por execução (ADR 0009)."""
+
+    def save(self, record: RunRecord) -> str:
+        """Grava a execução de forma atômica e devolve o caminho do arquivo (para exibir ao usuário)."""
         ...

@@ -7,6 +7,7 @@ inseridos nos prompts. Identificadores e chaves JSON ficam em inglês (ADR 0025)
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -190,6 +191,73 @@ class ClarifyingQuestions(BaseModel):
 class FlowSummary(BaseModel):
     """Resumo do fluxo como árvore de decisão (nós e arestas). Etapa 2 define o grafo; o ASCII é desenhado
     por código (ADR 0008)."""
+
+
+# --- Registro de execução (contrato em docs/planejamento/01-arquitetura.md) -------------------------
+
+# Versão do formato do arquivo salvo: permite evoluir o JSON sem quebrar execuções antigas.
+RUN_SCHEMA_VERSION = 1
+
+RunStatus = Literal["ok", "error"]
+
+
+class RunTicket(BaseModel):
+    """Ticket como foi usado na execução: ``id`` é ``None`` quando o texto foi digitado à mão."""
+
+    id: str | None
+    title: str
+    text: str
+
+
+class RunParams(BaseModel):
+    """Parâmetros do modelo usados na execução (entram na comparação justa e, depois, na chave de cache)."""
+
+    temperature: float
+    max_tokens: int
+    structured_mode: str
+
+
+class RunError(BaseModel):
+    """Falha de uma execução com ``status: "error"``: nome da exceção do domínio e mensagem."""
+
+    type: str
+    message: str
+
+
+class RunRecord(BaseModel):
+    """Uma execução de geração, gravada em um arquivo JSON (ADR 0009). Execuções com erro também são gravadas,
+    mas nunca entram no cache (ADR 0018).
+
+    ``cache_key``, ``cache_hit`` e ``source_run_id`` são preenchidos pela Etapa 3; ``evaluation`` e
+    ``llm_evaluation``, pela Etapa 4. Já fazem parte do contrato para o formato não mudar de versão.
+    """
+
+    schema_version: int = RUN_SCHEMA_VERSION
+    run_id: str
+    timestamp: str  # ISO 8601 com o fuso de APP_TIMEZONE
+    status: RunStatus
+    customer_id: str
+    customer_profile: CustomerProfile
+    ticket: RunTicket
+    content_type: ContentType
+    prompt_version: str
+    prompt_sha256: str
+    provider: str
+    model: str  # modelo pedido
+    model_used: str | None = None  # modelo efetivo, devolvido pelo provedor
+    params: RunParams
+    cache_key: str | None = None
+    cache_hit: bool = False
+    source_run_id: str | None = None
+    attempts: int = 1  # 1 = saiu de primeira; 2 = precisou do reparo
+    latency_ms: int = 0
+    usage: dict[str, int] = Field(default_factory=dict)
+    prompt_messages: list[dict[str, str]] = Field(default_factory=list)
+    output: dict | None = None
+    rendered: str | None = None
+    error: RunError | None = None
+    evaluation: dict | None = None
+    llm_evaluation: dict | None = None
 
 
 # Mapa tipo de conteúdo -> schema de saída esperado do LLM.

@@ -1,7 +1,7 @@
 """Repositórios em arquivos JSON (ADR 0009).
 
-Lê o catálogo (``catalog/profiles.json`` e ``catalog/tickets.json``) e oferece o helper de escrita atômica que
-será a única forma de gravar dados de execução nas etapas seguintes.
+Lê o catálogo (``catalog/profiles.json`` e ``catalog/tickets.json``), grava as execuções (``var/runs/``) e
+oferece o helper de escrita atômica, a única forma de gravar dados de execução.
 """
 
 from __future__ import annotations
@@ -9,13 +9,15 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from app.config import BASE_DIR
 from app.domain.errors import NotFound, ValidationFailed
-from app.domain.models import CustomerProfile, Ticket
+from app.domain.models import CustomerProfile, RunRecord, Ticket
 
 PROFILES_FILE = "profiles.json"
 TICKETS_FILE = "tickets.json"
@@ -94,3 +96,30 @@ class JsonTicketRepo:
             if ticket.id == ticket_id:
                 return ticket
         raise NotFound(f"Ticket não encontrado: {ticket_id}")
+
+
+# Pasta das execuções dentro de ``DATA_DIR`` e formato do carimbo no nome do arquivo.
+RUNS_DIR = "runs"
+_FILE_STAMP = "%Y%m%dT%H%M%S"
+
+
+def display_path(path: Path) -> str:
+    """Caminho para mostrar ao usuário: relativo à raiz do repositório quando está dentro dela."""
+    try:
+        return str(path.relative_to(BASE_DIR))
+    except ValueError:
+        return str(path)
+
+
+class JsonRunRepo:
+    """``RunRepo`` que grava ``<data_dir>/runs/AAAA-MM-DD/<AAAAMMDDTHHMMSS>_<run_id>.json``."""
+
+    def __init__(self, data_dir: Path) -> None:
+        self._runs_dir = data_dir / RUNS_DIR
+
+    def save(self, record: RunRecord) -> str:
+        """Grava a execução por escrita atômica. A pasta e o carimbo usam o fuso do próprio ``timestamp``."""
+        moment = datetime.fromisoformat(record.timestamp)
+        path = self._runs_dir / moment.strftime("%Y-%m-%d") / f"{moment.strftime(_FILE_STAMP)}_{record.run_id}.json"
+        atomic_write_json(path, record.model_dump(mode="json"))
+        return display_path(path)
