@@ -33,6 +33,7 @@ Cada ADR registra uma decisão técnica, as alternativas comparadas (com prós, 
 | [0025](0025-idioma-e-fuso.md) | Idioma pt-BR e horários com fuso configurado | Aceito |
 | [0026](0026-modelo-padrao.md) | Modelo padrão de geração e limite de tokens | Aceito |
 | [0027](0027-controle-de-raciocinio.md) | Controle de raciocínio dos modelos gratuitos | Aceito |
+| [0028](0028-politica-de-cache.md) | Política de cache: ponteiro para a execução, acerto gravado e desligamento total | Aceito |
 
 ## Template
 

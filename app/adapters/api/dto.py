@@ -75,6 +75,7 @@ class MetaOut(BaseModel):
     free_ticket_title: str
     limits: LimitsOut
     llm: LlmInfoOut
+    cache_enabled: bool  # CACHE_ENABLED: com ``false`` o site desabilita a opção "Usar cache"
 
 
 class PromptVersionOut(PromptVersion):
@@ -87,7 +88,8 @@ class GenerateIn(BaseModel):
     """Corpo de ``POST /api/generate``: perfil, ticket (do catálogo **ou** texto livre) e tipo de conteúdo.
 
     ``content_type`` aceita os quatro tipos ou ``"all"`` (todos, em paralelo). A regra "exatamente um dos dois
-    tickets" é validada no serviço, para API e CLI darem a mesma mensagem.
+    tickets" é validada no serviço, para API e CLI darem a mesma mensagem. ``use_cache`` (padrão ``true``) permite
+    forçar uma geração nova: com ``false`` o cache não é lido nem gravado (ADR 0028).
     """
 
     profile_id: str
@@ -95,6 +97,7 @@ class GenerateIn(BaseModel):
     ticket_text: str | None = None
     content_type: str = ContentType.DIAGNOSIS.value
     prompt_version: str | None = None
+    use_cache: bool = True
 
     @field_validator("content_type")
     @classmethod

@@ -195,7 +195,7 @@ def test_generate_como_modulo_com_fake(tmp_path) -> None:
     )
     assert r.returncode == EXIT_OK, r.stderr
     assert "JSON salvo em:" in r.stdout
-    [arquivo] = list(tmp_path.rglob("*.json"))
+    [arquivo] = list((tmp_path / "runs").rglob("*.json"))
     assert json.loads(arquivo.read_text(encoding="utf-8"))["provider"] == "fake"
 
 
@@ -239,3 +239,50 @@ def test_generate_all_com_falha_parcial_imprime_o_resto_e_sai_com_codigo_do_prov
 def test_generate_all_com_entrada_invalida_nao_gera(container, settings, capsys) -> None:
     assert main(["generate", "--customer", "x", "--ticket", "t-2fa", "--type", "all"], container) == EXIT_NOT_FOUND
     assert _salvos(settings) == []
+
+
+# --- cache (ADR 0028) --------------------------------------------------------------------------------
+
+
+ARGS_CACHE = ["generate", "--customer", "marta", "--ticket", "t-2fa"]
+
+
+def test_segunda_geracao_igual_mostra_cache_hit_e_nao_chama_o_llm(settings, capsys) -> None:
+    llm = LLMPorSchema({})
+    container = build_container(settings, llm=llm)
+    assert main(ARGS_CACHE, container) == EXIT_OK
+    primeira = capsys.readouterr().out
+    assert "cache hit" not in primeira
+    assert main(ARGS_CACHE, container) == EXIT_OK
+    segunda = capsys.readouterr().out
+    assert "cache hit (origem" in segunda and "HIPÓTESES" in segunda  # o conteúdo sai igual
+    assert len(llm.chamadas) == 1 and len(_salvos(settings)) == 2
+
+
+def test_no_cache_gera_de_novo(settings, capsys) -> None:
+    llm = LLMPorSchema({})
+    container = build_container(settings, llm=llm)
+    main(ARGS_CACHE, container)
+    assert main([*ARGS_CACHE, "--no-cache"], container) == EXIT_OK
+    assert "cache hit" not in capsys.readouterr().out.split("JSON salvo em")[1]
+    assert len(llm.chamadas) == 2
+
+
+def test_generate_json_traz_cache_hit_e_origem(settings, capsys) -> None:
+    container = build_container(settings)
+    main([*ARGS_CACHE, "--json"], container)
+    primeira = json.loads(capsys.readouterr().out)["run"]
+    main([*ARGS_CACHE, "--json"], container)
+    segunda = json.loads(capsys.readouterr().out)["run"]
+    assert primeira["cache_hit"] is False and segunda["cache_hit"] is True
+    assert segunda["source_run_id"] == primeira["run_id"]
+
+
+def test_generate_all_no_cache(settings, capsys) -> None:
+    llm = LLMPorSchema({})
+    container = build_container(settings, llm=llm)
+    main([*ARGS_CACHE, "--type", "all"], container)
+    main([*ARGS_CACHE, "--type", "all"], container)
+    assert len(llm.chamadas) == 4  # a segunda rodada veio inteira do cache
+    main([*ARGS_CACHE, "--type", "all", "--no-cache"], container)
+    assert len(llm.chamadas) == 8

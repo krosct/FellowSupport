@@ -37,7 +37,7 @@ cd frontend && npm install && npm run build && cd ..   # gera frontend/dist
 Abra http://127.0.0.1:8000/. A API serve o build do front em `/`. Escolha o perfil, o ticket e o conteúdo (diagnóstico, passo a passo,
 perguntas de esclarecimento, resumo visual do fluxo ou **Todos**) e clique em **Gerar**: o site mostra o conteúdo e o caminho
 do JSON salvo. Em "Todos" os quatro são gerados em paralelo, em abas, cada um com o seu JSON; a falha de um não afeta os outros. Rotas: `GET /healthz`, `GET /api/meta`, `GET /api/profiles`,
-`GET /api/tickets`, `GET /api/prompt-versions` e `POST /api/generate` (`content_type` com os quatro tipos ou `all`;
+`GET /api/tickets`, `GET /api/prompt-versions` e `POST /api/generate` (`content_type` com os quatro tipos ou `all`; `use_cache`, padrão `true`;
 documentação interativa em `/api/docs`).
 
 ## Rodar o front em modo de desenvolvimento
@@ -62,12 +62,21 @@ O Vite encaminha `/api` e `/healthz` para a porta 8000.
 .venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type flow_summary  # fluxograma ASCII
 .venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type all          # os quatro, em paralelo
 .venv/bin/python -m app.adapters.cli.main generate --customer bianca --text "A API devolve 500."
+.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --no-cache      # ignora o cache
 ```
 
 Todos aceitam `--json`. `--type` aceita `diagnosis`, `resolution_steps`, `clarifying_questions`, `flow_summary` e `all`. `generate`
 imprime o conteúdo em texto legível (o fluxograma em ASCII, desenhado por código a partir da árvore de decisão) e
 `JSON salvo em: var/runs/AAAA-MM-DD/<carimbo>_<id>.json`; com `all`, um bloco e um JSON por tipo, e a falha de um tipo não
 impede a saída dos outros. Códigos de saída: 0 sucesso, 1 uso ou validação, 2 não encontrado, 3 provedor de LLM.
+
+### Cache
+
+Gerar duas vezes a mesma entrada (mesmo perfil, ticket, tipo, versão e hash do prompt, provedor, modelo e parâmetros) não
+chama o LLM na segunda vez: a CLI mostra `cache hit (origem <id>, sem chamar o LLM)` e o JSON salvo traz `cache_hit: true`,
+`source_run_id` e latência de ~0 ms. O cache vive em `var/cache/<sha256>.json` e aponta para a execução de origem; execuções
+com erro nunca entram nele. Para gerar de novo: `--no-cache` na CLI, `"use_cache": false` na API ou desmarcar **Usar cache**
+no site; `CACHE_ENABLED=false` no `.env` desliga o cache de vez. Detalhes no ADR 0028.
 
 Exemplo do fluxograma (provedor `fake`):
 

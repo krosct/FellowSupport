@@ -97,14 +97,19 @@ def render_output(record: RunRecord) -> str:
 
 
 def render_run_header(record: RunRecord) -> str:
-    """Cabeçalho da execução: cliente, ticket, versão do prompt, modelo, latência e tentativas."""
+    """Cabeçalho da execução: cliente, ticket, versão do prompt, modelo e latência.
+
+    Num acerto de cache mostra a origem em vez das tentativas (não houve chamada ao LLM).
+    """
     profile = record.customer_profile
+    model = f"Modelo:  {record.model_used or record.model} via {record.provider} · {record.latency_ms} ms"
+    if record.cache_hit:
+        model += f" · cache hit (origem {record.source_run_id}, sem chamar o LLM)"
+    else:
+        model += f" · tentativas: {record.attempts}"
     return "\n".join([
         f"Cliente: {profile.name} ({profile.tech_level.value} · {profile.comm_style.value} · {profile.channel.value})",
         f"Ticket:  {record.ticket.title}",
         f"Prompt:  {record.prompt_version} (sha256 {record.prompt_sha256[:HASH_PREVIEW_CHARS]})",
-        f"Modelo:  {record.model_used or record.model} via {record.provider} · {record.latency_ms} ms · "
-        f"tentativas: {record.attempts}",
+        model,
     ])
-
-

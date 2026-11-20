@@ -197,3 +197,56 @@ def test_all_com_entrada_invalida_recusa_antes_de_gerar(settings: Settings, corp
     llm = LLMPorSchema({})
     r = _cliente(settings, llm).post("/api/generate", json={**corpo, "content_type": "all"})
     assert r.status_code == status and llm.chamadas == [] and _arquivos(settings) == []
+
+
+# --- cache (ADR 0028) --------------------------------------------------------------------------------
+
+
+class _Contador(LLMPorSchema):
+    """``LLMPorSchema`` sem respostas roteirizadas: cai no FakeLLM e conta as chamadas."""
+
+    def __init__(self) -> None:
+        super().__init__({})
+
+
+def test_segunda_chamada_igual_e_cache_hit_sem_chamar_o_llm(settings: Settings) -> None:
+    llm = _Contador()
+    cliente = _cliente(settings, llm)
+    primeira = cliente.post("/api/generate", json=CORPO).json()["run"]
+    segunda = cliente.post("/api/generate", json=CORPO).json()["run"]
+    assert len(llm.chamadas) == 1
+    assert primeira["cache_hit"] is False and segunda["cache_hit"] is True
+    assert segunda["source_run_id"] == primeira["run_id"] and segunda["latency_ms"] < 50
+    assert segunda["output"] == primeira["output"]
+
+
+def test_use_cache_false_gera_de_novo(settings: Settings) -> None:
+    llm = _Contador()
+    cliente = _cliente(settings, llm)
+    cliente.post("/api/generate", json=CORPO)
+    r = cliente.post("/api/generate", json={**CORPO, "use_cache": False}).json()["run"]
+    assert r["cache_hit"] is False and len(llm.chamadas) == 2
+
+
+def test_use_cache_invalido_e_422(settings: Settings) -> None:
+    assert _cliente(settings).post("/api/generate", json={**CORPO, "use_cache": "talvez"}).status_code == 422
+
+
+def test_all_cada_tipo_consulta_o_cache_sozinho(settings: Settings) -> None:
+    llm = _Contador()
+    cliente = _cliente(settings, llm)
+    cliente.post("/api/generate", json=CORPO)  # só o diagnóstico
+    itens = cliente.post("/api/generate", json={**CORPO, "content_type": "all"}).json()["results"]
+    hits = {i["content_type"]: i["run"]["cache_hit"] for i in itens}
+    assert hits == {"diagnosis": True, "resolution_steps": False, "clarifying_questions": False, "flow_summary": False}
+    assert len(llm.chamadas) == 4
+    again = cliente.post("/api/generate", json={**CORPO, "content_type": "all"}).json()["results"]
+    assert all(i["run"]["cache_hit"] for i in again) and len(llm.chamadas) == 4
+    sem = cliente.post("/api/generate", json={**CORPO, "content_type": "all", "use_cache": False}).json()["results"]
+    assert not any(i["run"]["cache_hit"] for i in sem) and len(llm.chamadas) == 8
+
+
+def test_meta_informa_se_o_cache_esta_ligado(settings: Settings) -> None:
+    assert _cliente(settings).get("/api/meta").json()["cache_enabled"] is True
+    desligado = settings.model_copy(update={"cache_enabled": False})
+    assert _cliente(desligado).get("/api/meta").json()["cache_enabled"] is False

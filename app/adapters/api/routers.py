@@ -83,6 +83,7 @@ def meta(container: ContainerDep) -> MetaOut:
         free_ticket_title=FREE_TICKET_TITLE,
         limits=LimitsOut(max_ticket_chars=settings.max_ticket_chars),
         llm=LlmInfoOut(provider=settings.llm_provider, model=settings.llm_model),
+        cache_enabled=settings.cache_enabled,
     )
 
 
@@ -133,7 +134,9 @@ def generate_content(body: GenerateIn, container: ContainerDep) -> GenerateOut |
 
     No modo ``all`` a resposta traz um item por tipo e a falha de um tipo não afeta os outros. Só se **todos**
     falharem a rota responde com o erro do primeiro (mesmo mapeamento do tipo único), porque nada foi gerado.
-    Erros do domínio viram HTTP pelo tratador único de ``main.py``: 404, 422, 429, 502 e 503.
+    Com ``use_cache`` ligado (padrão), uma entrada equivalente a uma execução anterior bem-sucedida não chama o LLM:
+    a resposta traz uma nova execução com ``cache_hit: true`` e ``source_run_id``. No modo ``all`` cada tipo
+    consulta o cache sozinho. Erros do domínio viram HTTP pelo tratador único de ``main.py``: 404, 422, 429, 502 e 503.
     """
     if body.content_type == ALL_OPTION_VALUE:
         batch = generate_all(
@@ -142,6 +145,7 @@ def generate_content(body: GenerateIn, container: ContainerDep) -> GenerateOut |
             ticket_id=body.ticket_id,
             ticket_text=body.ticket_text,
             prompt_version=body.prompt_version,
+            use_cache=body.use_cache,
         )
         if len(batch.errors) == len(batch.items):
             raise batch.errors[0]
@@ -153,5 +157,6 @@ def generate_content(body: GenerateIn, container: ContainerDep) -> GenerateOut |
         ticket_id=body.ticket_id,
         ticket_text=body.ticket_text,
         prompt_version=body.prompt_version,
+        use_cache=body.use_cache,
     )
     return GenerateOut(saved_path=result.saved_path, run=result.record)

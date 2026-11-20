@@ -1,7 +1,7 @@
 """CLI do FellowSupport (argparse, stdlib). Execução: ``python -m app.adapters.cli.main <subcomando>``.
 
-Subcomandos: ``profiles``, ``tickets``, ``versions`` e ``generate`` (``--type`` com os quatro tipos ou ``all``).
-As Etapas seguintes acrescentam ``history``, ``compare`` etc.
+Subcomandos: ``profiles``, ``tickets``, ``versions`` e ``generate`` (``--type`` com os quatro tipos ou ``all``;
+``--no-cache`` ignora o cache). As Etapas seguintes acrescentam ``compare`` etc.
 Códigos de saída: 0 sucesso · 1 erro de uso ou validação · 2 não encontrado · 3 provedor de LLM indisponível.
 """
 
@@ -77,6 +77,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="tipo de conteúdo; 'all' gera os quatro em paralelo (padrão: diagnosis)",
     )
     gen.add_argument("--version", help="versão do prompt (padrão: DEFAULT_PROMPT_VERSION)")
+    gen.add_argument(
+        "--no-cache", action="store_true", help="ignora o cache: gera de novo e não lê nem grava o cache"
+    )
     gen.add_argument("--json", action="store_true", help="saída em JSON")
     return parser
 
@@ -145,6 +148,7 @@ def _cmd_generate_all(container: Container, args: argparse.Namespace) -> int:
         ticket_id=args.ticket,
         ticket_text=args.text,
         prompt_version=args.version,
+        use_cache=not args.no_cache,
     )
     if args.json:
         _dump({"results": [
@@ -185,6 +189,7 @@ def _cmd_generate(container: Container, args: argparse.Namespace) -> int | None:
         ticket_id=args.ticket,
         ticket_text=args.text,
         prompt_version=args.version,
+        use_cache=not args.no_cache,
     )
     record = result.record
     if args.json:

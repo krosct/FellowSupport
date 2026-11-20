@@ -86,7 +86,8 @@ def test_geracao_com_fake_persiste_o_contrato_completo(settings: Settings) -> No
     assert salvo["attempts"] == 1 and isinstance(salvo["latency_ms"], int)
     assert salvo["usage"]["prompt_tokens"] > 0
     assert [m["role"] for m in salvo["prompt_messages"]] == ["system", "user"]
-    assert salvo["cache_hit"] is False and salvo["cache_key"] is None and salvo["source_run_id"] is None
+    assert salvo["cache_hit"] is False and salvo["source_run_id"] is None
+    assert len(salvo["cache_key"]) == 64  # toda execução leva a chave, para localizar equivalentes
     assert salvo["error"] is None
     Diagnosis.model_validate(salvo["output"])  # saída validada pelo schema
     assert RunRecord.model_validate(salvo) == resultado.record
