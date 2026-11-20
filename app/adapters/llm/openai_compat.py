@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable
 from app.domain.llm_output import extract_json_object
-from app.ports.llm import ChatMessage, LLMParams, LLMResult, StructuredMode
+from app.ports.llm import ChatMessage, LLMParams, LLMResult, ReasoningMode, StructuredMode
 
 # Tamanho máximo da mensagem de erro do provedor repassada ao usuário (evita despejar HTML ou corpos enormes).
 _MAX_ERROR_CHARS = 300
@@ -29,6 +29,23 @@ _SCHEMA_INSTRUCTION = (
     "Responda somente com um objeto JSON válido, sem texto antes ou depois e sem cercas de código, que siga "
     "exatamente este JSON Schema:\n{schema}"
 )
+
+
+# Corpo do parâmetro ``reasoning`` do OpenRouter para cada modo (``default`` não envia nada). ``off`` usa
+# ``enabled: false``; ``none`` usa ``effort: none``. Modelos de raciocínio obrigatório podem ignorar ou recusar.
+REASONING_REQUESTS: dict[str, dict[str, Any]] = {
+    "off": {"enabled": False},
+    "none": {"effort": "none"},
+    "low": {"effort": "low"},
+    "medium": {"effort": "medium"},
+    "high": {"effort": "high"},
+}
+
+
+def _reasoning_body(mode: ReasoningMode) -> dict[str, Any] | None:
+    """``extra_body`` com o controle de raciocínio do modo, ou ``None`` no modo ``default``."""
+    request = REASONING_REQUESTS.get(mode)
+    return {"reasoning": request} if request else None
 
 
 def _response_format(schema: type[BaseModel], mode: StructuredMode) -> dict[str, Any] | None:
@@ -100,6 +117,9 @@ class OpenAICompatClient:
         response_format = _response_format(schema, params.structured_mode)
         if response_format is not None:
             request["response_format"] = response_format
+        extra_body = _reasoning_body(params.reasoning)
+        if extra_body is not None:
+            request["extra_body"] = extra_body  # campo fora do contrato OpenAI: o SDK o mescla ao corpo
 
         started = time.perf_counter()
         try:

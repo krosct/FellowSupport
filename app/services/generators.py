@@ -41,7 +41,7 @@ from app.domain.models import (
 )
 from app.domain.prompting.engine import PromptBuilder
 from app.domain.prompting.registry import PromptRegistry
-from app.ports.llm import ChatMessage, LLMClient, LLMParams, LLMResult, StructuredMode
+from app.ports.llm import ChatMessage, LLMClient, LLMParams, LLMResult, ReasoningMode, StructuredMode
 from app.ports.repositories import ProfileRepo, RunRepo, TicketRepo
 
 logger = logging.getLogger("fellowsupport.generators")
@@ -65,6 +65,7 @@ class GenerationConfig:
     temperature: float
     max_tokens: int
     structured_mode: StructuredMode
+    reasoning: ReasoningMode
     default_prompt_version: str
     max_ticket_chars: int
     save_prompt_messages: bool
@@ -210,6 +211,7 @@ def _generate_result(
         temperature=config.temperature,
         max_tokens=config.max_tokens,
         structured_mode=config.structured_mode,
+        reasoning=config.reasoning,
     )
     prompt_sha256 = ctx.registry.actual_sha256(version)
 
@@ -251,7 +253,10 @@ def _generate_result(
         model=config.model,
         model_used=tally.model_used,
         params=RunParams(
-            temperature=config.temperature, max_tokens=config.max_tokens, structured_mode=config.structured_mode
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+            structured_mode=config.structured_mode,
+            reasoning=config.reasoning,
         ),
         attempts=max(tally.attempts, 1),
         latency_ms=latency_ms,

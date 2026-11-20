@@ -53,6 +53,7 @@ def build_container(settings: Settings | None = None, *, llm: LLMClient | None =
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
             structured_mode=settings.llm_structured_mode,
+            reasoning=settings.llm_reasoning,
             default_prompt_version=settings.default_prompt_version,
             max_ticket_chars=settings.max_ticket_chars,
             save_prompt_messages=settings.save_prompt_messages,

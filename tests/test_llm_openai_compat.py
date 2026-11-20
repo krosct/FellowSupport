@@ -236,3 +236,48 @@ def test_fabrica_openrouter_sem_chave_falha_no_uso_com_mensagem_clara() -> None:
 def test_fabrica_openrouter_com_chave_cria_o_adaptador_real() -> None:
     settings = Settings(_env_file=None, llm_provider="openrouter", openrouter_api_key=CHAVE)
     assert isinstance(build_llm_client(settings), OpenAICompatClient)
+
+
+# --- controle de raciocínio (ADR 0027) ---------------------------------------------------------------
+
+
+def _params_raciocinio(modo: str) -> LLMParams:
+    return LLMParams(model="vendor/modelo:free", temperature=0.1, max_tokens=500, structured_mode="json_schema",
+                     reasoning=modo)
+
+
+def test_raciocinio_default_nao_envia_o_parametro() -> None:
+    servidor = Servidor(_ok())
+    _cliente(servidor).complete(MENSAGENS, Diagnosis, _params())
+    assert "reasoning" not in servidor.corpo()
+
+
+@pytest.mark.parametrize(
+    ("modo", "esperado"),
+    [
+        ("off", {"enabled": False}),
+        ("none", {"effort": "none"}),
+        ("low", {"effort": "low"}),
+        ("medium", {"effort": "medium"}),
+        ("high", {"effort": "high"}),
+    ],
+)
+def test_raciocinio_vai_no_corpo_da_requisicao(modo: str, esperado: dict) -> None:
+    servidor = Servidor(_ok())
+    _cliente(servidor).complete(MENSAGENS, Diagnosis, _params_raciocinio(modo))
+    assert servidor.corpo()["reasoning"] == esperado
+
+
+def test_raciocinio_obrigatorio_recusado_pelo_provedor_vira_llm_unavailable_com_a_causa() -> None:
+    """Resposta real medida no modelo padrão: HTTP 400 dizendo que o raciocínio é obrigatório."""
+    mensagem = "Reasoning is mandatory for this endpoint and cannot be disabled."
+    recusa = httpx2.Response(400, json={"error": {"message": mensagem}})
+    with pytest.raises(LLMUnavailable, match="mandatory"):
+        _cliente(Servidor(recusa)).complete(MENSAGENS, Diagnosis, _params_raciocinio("off"))
+
+
+def test_settings_aceita_so_modos_de_raciocinio_validos() -> None:
+    assert Settings(_env_file=None).llm_reasoning == "default"
+    assert Settings(_env_file=None, llm_reasoning="off").llm_reasoning == "off"
+    with pytest.raises(ValueError):
+        Settings(_env_file=None, llm_reasoning="desligado")

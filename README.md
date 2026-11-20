@@ -25,7 +25,7 @@ Sem `uv`: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements-dev
 
 O `.env` guarda segredos e nunca é versionado. Chamadas reais ao LLM só acontecem com `LLM_PROVIDER=openrouter`
 e `OPENROUTER_API_KEY` preenchida; com `LLM_PROVIDER=fake` (padrão) as respostas são simuladas e determinísticas.
-Os modelos gratuitos "pensam" antes de responder: mantenha `LLM_MAX_TOKENS` em 8000 ou mais (ADR 0026).
+Os modelos gratuitos "pensam" antes de responder: mantenha `LLM_MAX_TOKENS` em 8000 ou mais (ADR 0026). O modelo padrão tem raciocínio obrigatório e recusa `LLM_REASONING=off`; ver ADR 0027.
 
 ## Rodar a API (e o site)
 

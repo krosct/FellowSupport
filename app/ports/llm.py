@@ -18,6 +18,11 @@ from pydantic import BaseModel
 StructuredMode = Literal["json_schema", "json_object", "prompt"]
 
 
+# Controle do raciocínio dos modelos que "pensam" antes de responder (ADR 0027). ``default`` não envia o
+# parâmetro (o modelo faz o que faz por padrão); ``off`` pede o raciocínio desligado; os demais pedem esforço.
+ReasoningMode = Literal["default", "off", "none", "low", "medium", "high"]
+
+
 class ChatMessage(TypedDict):
     """Uma mensagem no formato de chat usado por todos os provedores compatíveis."""
 
@@ -33,6 +38,7 @@ class LLMParams:
     temperature: float
     max_tokens: int
     structured_mode: StructuredMode
+    reasoning: ReasoningMode = "default"
 
 
 @dataclass(frozen=True)

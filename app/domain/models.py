@@ -382,6 +382,7 @@ class RunParams(BaseModel):
     temperature: float
     max_tokens: int
     structured_mode: str
+    reasoning: str = "default"  # controle de raciocínio (ADR 0027); "default" também nos arquivos antigos
 
 
 class RunError(BaseModel):

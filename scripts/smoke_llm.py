@@ -21,6 +21,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import get_args
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -36,7 +37,7 @@ from app.domain.llm_output import format_validation_error  # noqa: E402
 from app.domain.models import ContentType, Diagnosis  # noqa: E402
 from app.domain.prompting.engine import PromptBuilder  # noqa: E402
 from app.domain.prompting.registry import PromptRegistry  # noqa: E402
-from app.ports.llm import LLMParams  # noqa: E402
+from app.ports.llm import LLMParams, ReasoningMode  # noqa: E402
 
 EXIT_OK, EXIT_FAILED, EXIT_BLOCKED = 0, 1, 2
 
@@ -85,6 +86,7 @@ def main() -> int:
     parser.add_argument("--profile", default="marta", help="id do perfil (padrão: marta)")
     parser.add_argument("--ticket", default="t-2fa", help="id do ticket (padrão: t-2fa)")
     parser.add_argument("--version", help="versão do prompt (padrão: DEFAULT_PROMPT_VERSION)")
+    parser.add_argument("--reasoning", choices=get_args(ReasoningMode), help="raciocínio (padrão: LLM_REASONING)")
     parser.add_argument("--max-tokens", type=int, help="limite de tokens da resposta (padrão: LLM_MAX_TOKENS)")
     parser.add_argument("--retries", type=int, default=0, help="retentativas do SDK em 429/5xx (padrão: 0)")
     parser.add_argument("--fake", action="store_true", help="usa o provedor fake (ensaia o script, sem rede)")
@@ -109,18 +111,21 @@ def main() -> int:
         temperature=settings.llm_temperature,
         max_tokens=args.max_tokens or settings.llm_max_tokens,
         structured_mode=mode,
+        reasoning=args.reasoning or settings.llm_reasoning,
     )
     client = FakeLLM() if args.fake else OpenAICompatClient(
         api_key=key, base_url=settings.llm_base_url, timeout_s=settings.llm_timeout_s, max_retries=args.retries
     )
 
-    print(f"Modelo: {model} · modo: {mode} · prompt {version} · perfil {profile.id} · ticket {ticket.id}")
+    print(f"Modelo: {model} · modo: {mode} · raciocínio: {params.reasoning} · prompt {version} · "
+          f"perfil {profile.id} · ticket {ticket.id}")
     smoke_dir = settings.data_dir / SMOKE_DIR
     smoke_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone()
     report: dict = {
         "timestamp": stamp.isoformat(timespec="seconds"), "model": model, "mode": mode, "prompt_version": version,
-        "max_tokens": params.max_tokens, "profile": profile.id, "ticket": ticket.id, "fake": args.fake,
+        "max_tokens": params.max_tokens, "reasoning": params.reasoning, "profile": profile.id,
+        "ticket": ticket.id, "fake": args.fake,
     }
     try:
         result = client.complete(messages, Diagnosis, params)
@@ -163,7 +168,8 @@ def _log_call(smoke_dir: Path, report: dict) -> None:
     """Anota uma linha por chamada em ``calls.log`` (orçamento de chamadas reais)."""
     if report.get("fake"):
         return
-    line = f"{report['timestamp']}\t{report['model']}\t{report['mode']}\t{report['outcome']}\n"
+    line = (f"{report['timestamp']}\t{report['model']}\t{report['mode']}\treasoning={report['reasoning']}"
+            f"\t{report['outcome']}\n")
     with (smoke_dir / CALLS_LOG).open("a", encoding="utf-8") as log:
         log.write(line)
 

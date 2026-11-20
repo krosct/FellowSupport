@@ -13,7 +13,7 @@ from typing import Literal
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.ports.llm import StructuredMode
+from app.ports.llm import ReasoningMode, StructuredMode
 
 # Raiz do repositório. Caminhos relativos do .env (ex.: ``catalog``) são resolvidos a partir dela, para que a
 # API e a CLI funcionem independentemente do diretório em que são iniciadas.
@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     llm_timeout_s: float = 60
     llm_max_retries: int = 2
     llm_structured_mode: StructuredMode = "json_schema"
+    # Controle do raciocínio dos modelos que "pensam" antes de responder (ADR 0027); "default" não envia nada.
+    llm_reasoning: ReasoningMode = "default"
 
     # --- Prompts e dados ---
     default_prompt_version: str = "v1"

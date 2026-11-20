@@ -81,6 +81,7 @@ def test_geracao_com_fake_persiste_o_contrato_completo(settings: Settings) -> No
     assert salvo["model_used"] == "fake-llm"
     assert salvo["params"] == {
         "temperature": 0.2, "max_tokens": settings.llm_max_tokens, "structured_mode": "json_schema",
+        "reasoning": "default",
     }
     assert salvo["attempts"] == 1 and isinstance(salvo["latency_ms"], int)
     assert salvo["usage"]["prompt_tokens"] > 0
@@ -106,6 +107,13 @@ def test_timestamp_usa_o_fuso_configurado(settings: Settings) -> None:
 def test_ticket_livre_registra_id_nulo_e_titulo_padrao(settings: Settings) -> None:
     r = _gerar(_ctx(settings), ticket_id=None, ticket_text="  Não consigo logar.  ").record
     assert r.ticket.id is None and r.ticket.title == FREE_TICKET_TITLE and r.ticket.text == "Não consigo logar."
+
+
+def test_raciocinio_configurado_vai_para_os_parametros_da_execucao(settings: Settings) -> None:
+    assert _gerar(_ctx(settings, reasoning="off")).record.params.reasoning == "off"
+    assert build_container(Settings(_env_file=None, llm_provider="fake", llm_reasoning="low",
+                                    catalog_dir=settings.catalog_dir, prompts_dir=settings.prompts_dir,
+                                    data_dir=settings.data_dir)).generation.config.reasoning == "low"
 
 
 def test_prompt_messages_pode_ser_desligado(settings: Settings) -> None:
