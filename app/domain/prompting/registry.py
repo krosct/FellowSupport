@@ -21,13 +21,18 @@ VERSION_PATTERN = r"v\d+"
 
 
 class PromptChange(BaseModel):
-    """Uma mudança em relação à versão-base: o quê, por quê e o efeito esperado (testável na rubrica)."""
+    """Uma mudança em relação à versão-base: o quê, por quê, o efeito esperado (testável na rubrica) e o risco.
+
+    ``risk`` é opcional só por compatibilidade: a v1 (imutável, ADR 0006) foi escrita antes de o campo existir.
+    Versões novas devem preenchê-lo, e um teste confere isso.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     what: str = Field(min_length=1)
     why: str = Field(min_length=1)
     expected_effect: str = Field(min_length=1)
+    risk: str | None = Field(default=None, description="O que a mudança pode piorar.")
 
 
 class PromptVersion(BaseModel):

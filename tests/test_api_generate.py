@@ -138,10 +138,13 @@ def test_mapa_de_erros_cobre_todas_as_excecoes_do_plano() -> None:
 def test_prompt_versions_lista_meta_e_marca_a_padrao(settings: Settings) -> None:
     r = _cliente(settings).get("/api/prompt-versions")
     assert r.status_code == 200
-    [v1] = r.json()
+    v1, v2 = r.json()
     assert v1["version"] == "v1" and v1["based_on"] is None and v1["is_default"] is True
     assert len(v1["content_sha256"]) == 64
     assert {"what", "why", "expected_effect"} <= set(v1["changes"][0])
+    # A v2 deriva da v1, não é a padrão e traz o risco de cada mudança (usado na aba Comparar).
+    assert v2["version"] == "v2" and v2["based_on"] == "v1" and v2["is_default"] is False
+    assert all(c["risk"] for c in v2["changes"])
 
 
 def test_meta_traz_niveis_de_confianca_e_titulo_do_ticket_livre(settings: Settings) -> None:

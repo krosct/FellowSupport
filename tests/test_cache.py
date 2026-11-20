@@ -155,6 +155,7 @@ def test_mudar_a_configuracao_invalida_o_cache(settings: Settings, campo: str) -
 def test_mudar_a_versao_ou_o_conteudo_do_prompt_invalida_o_cache(settings: Settings, tmp_path: Path) -> None:
     prompts = tmp_path / "prompts"
     shutil.copytree(settings.prompts_dir, prompts)
+    shutil.rmtree(prompts / "v2")  # a v2 real é substituída por uma cópia idêntica da v1 (só a versão difere)
     shutil.copytree(prompts / "v1", prompts / "v2")
     meta = json.loads((prompts / "v2" / "meta.json").read_text(encoding="utf-8"))
     (prompts / "v2" / "meta.json").write_text(json.dumps({**meta, "version": "v2", "based_on": "v1"}), encoding="utf-8")

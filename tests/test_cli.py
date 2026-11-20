@@ -90,8 +90,9 @@ def test_versions_lista_a_v1_como_padrao(container, capsys) -> None:
 
 def test_versions_json(container, capsys) -> None:
     assert main(["versions", "--json"], container) == EXIT_OK
-    [v1] = json.loads(capsys.readouterr().out)
+    v1, v2 = json.loads(capsys.readouterr().out)
     assert v1["version"] == "v1" and v1["is_default"] is True and len(v1["content_sha256"]) == 64
+    assert v2["version"] == "v2" and v2["based_on"] == "v1" and v2["is_default"] is False
 
 
 def test_generate_mostra_saida_legivel_e_o_caminho_do_json(container, settings, capsys) -> None:
