@@ -7,16 +7,22 @@ import Section from "../components/Section.jsx";
 import ProfilePicker from "../components/ProfilePicker.jsx";
 import TicketPicker from "../components/TicketPicker.jsx";
 import ScenarioSummary from "../components/ScenarioSummary.jsx";
-import DiagnosisView from "../components/DiagnosisView.jsx";
-import RunInfo from "../components/RunInfo.jsx";
+import GenerationResults from "../components/GenerationResults.jsx";
 
-/** Tela principal: monta o cenário (perfil + ticket), gera o diagnóstico e mostra o resultado. */
+/** Título do resultado: o rótulo do tipo gerado, ou o de "Todos" quando vieram vários. */
+function resultTitle(items, meta) {
+  if (items.length === 0) return "Resultado";
+  return items.length > 1 ? meta.all_option.label : labelOf(meta.content_types, items[0].content_type);
+}
+
+/** Tela principal: monta o cenário (perfil + ticket), gera o conteúdo escolhido (ou todos) e mostra o resultado. */
 export default function ScenarioPage() {
   const { status, meta, profiles, tickets, reload } = useCatalog();
   const [profileId, setProfileId] = useState(null);
   const [ticketId, setTicketId] = useState(null);
   const [mode, setMode] = useState("sample");
   const [freeText, setFreeText] = useState("");
+  const [contentType, setContentType] = useState(null);
   const generation = useGeneration();
   const resultRef = useRef(null);
 
@@ -26,15 +32,20 @@ export default function ScenarioPage() {
     if (tickets.length && ticketId === null) setTicketId(tickets[0].id);
   }, [profiles, tickets, profileId, ticketId]);
 
+  // O primeiro tipo de /api/meta (o diagnóstico) é o padrão do seletor.
+  useEffect(() => {
+    if (meta && contentType === null) setContentType(meta.content_types[0].value);
+  }, [meta, contentType]);
+
   const profile = profiles.find((item) => item.id === profileId);
   const ticket = tickets.find((item) => item.id === ticketId);
   const ticketTitle = mode === "sample" ? ticket?.title : freeText.trim() ? meta?.free_ticket_title : "";
   const ready = Boolean(profile) && (mode === "sample" ? Boolean(ticket) : freeText.trim().length > 0);
 
-  // Ticket do catálogo ou texto livre: a API aceita exatamente um dos dois. O tipo padrão da API é o diagnóstico.
+  // Ticket do catálogo ou texto livre: a API aceita exatamente um dos dois.
   const handleGenerate = () => {
     const source = mode === "sample" ? { ticket_id: ticketId } : { ticket_text: freeText.trim() };
-    generation.run({ profile_id: profileId, ...source });
+    generation.run({ profile_id: profileId, content_type: contentType, ...source });
   };
 
   // Leva o resultado para a vista (em telas estreitas ele fica abaixo do botão).
@@ -80,6 +91,10 @@ export default function ScenarioPage() {
               profile={profile}
               enums={meta.enums}
               ticketTitle={ticketTitle}
+              contentTypes={meta.content_types}
+              allOption={meta.all_option}
+              contentType={contentType ?? ""}
+              onContentTypeChange={setContentType}
               ready={ready}
               loading={generation.status === "loading"}
               onGenerate={handleGenerate}
@@ -91,16 +106,11 @@ export default function ScenarioPage() {
           <div ref={resultRef} className="result" aria-live="polite">
             <Section
               step={3}
-              title={generation.result ? labelOf(meta.content_types, generation.result.run.content_type) : "Resultado"}
-              hint={generation.result ? undefined : "Isso pode levar alguns segundos."}
+              title={resultTitle(generation.items, meta)}
+              hint={generation.status === "loading" ? "Isso pode levar alguns segundos." : undefined}
             >
               {generation.status === "loading" && <p aria-busy="true">Gerando...</p>}
-              {generation.result && (
-                <div className="stack">
-                  <RunInfo run={generation.result.run} savedPath={generation.result.saved_path} />
-                  <DiagnosisView diagnosis={generation.result.run.output} confidenceLevels={meta.confidence_levels} />
-                </div>
-              )}
+              {generation.items.length > 0 && <GenerationResults items={generation.items} meta={meta} />}
             </Section>
           </div>
         )}

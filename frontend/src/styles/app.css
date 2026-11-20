@@ -589,6 +589,198 @@ label.option-card {
   margin-bottom: 0.5rem;
 }
 
+/* Seletor do tipo de conteúdo (no resumo lateral) */
+.type-picker {
+  display: block;
+  margin: 0;
+}
+
+.type-picker select {
+  margin: 0;
+}
+
+/* Abas com rótulos longos quebram de linha em vez de estourar a largura */
+.segmented[data-wrap="true"] {
+  flex-wrap: wrap;
+  max-width: 100%;
+  border-radius: var(--fs-radius);
+}
+
+/* Passo a passo e perguntas: cartões numerados */
+.steps-view,
+.questions-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.lead {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.step-list,
+.question-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-card,
+.question-card {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  background: var(--fs-surface);
+  transition: border-color 0.15s;
+}
+
+.step-card:hover,
+.question-card:hover {
+  border-color: var(--fs-accent);
+}
+
+.step-card-head,
+.question-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.step-card-head h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.step-card p,
+.question-card p {
+  margin: 0 0 0.6rem;
+  line-height: 1.5;
+}
+
+.question-text {
+  font-weight: 600;
+}
+
+.step-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.step-notes > div {
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--fs-border);
+}
+
+.step-notes > div[data-kind="expected"] { border-left-color: var(--fs-for); }
+.step-notes > div[data-kind="fallback"] { border-left-color: var(--fs-against); }
+
+.step-notes dt {
+  color: var(--fs-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.step-notes dd {
+  margin: 0.15rem 0 0;
+  line-height: 1.45;
+}
+
+/* Bloco de destaque (quando escalar, fechamento, avançar sem respostas) */
+.callout {
+  padding: 1rem 1.25rem;
+  border-left: 4px solid var(--fs-accent);
+  border-radius: 0 var(--fs-radius) var(--fs-radius) 0;
+  background: var(--fs-bg);
+}
+
+.callout[data-kind="warn"] { border-left-color: var(--fs-badge-warn-fg); }
+.callout[data-kind="ok"] { border-left-color: var(--fs-badge-ok-fg); }
+
+.callout h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.callout p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.callout .conclusion-head {
+  margin-bottom: 0.4rem;
+}
+
+/* Fluxograma ASCII: rolagem horizontal própria, sem alargar a página */
+.flow-view {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.flow-ascii {
+  max-width: 100%;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  background: var(--fs-bg);
+  color: inherit;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  white-space: pre;
+}
+
+.flow-ascii:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus);
+}
+
+/* Modo "Todos": caminho do JSON de cada execução e erro de um tipo */
+.saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.saved-list .summary-label {
+  min-width: 11rem;
+  margin: 0;
+}
+
+.saved-list code {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.inline-error {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--fs-radius);
+  background: var(--fs-error-bg);
+  color: var(--fs-error-fg);
+}
+
 /* Toasts */
 .toast-region {
   position: fixed;
@@ -647,7 +839,8 @@ label.option-card {
     position: static;
   }
 
-  .diagnosis-columns {
+  .diagnosis-columns,
+  .step-notes {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -664,5 +857,10 @@ label.option-card {
   .option-list,
   .evidence-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .saved-list .summary-label {
+    min-width: 0;
+    flex-basis: 100%;
   }
 }
