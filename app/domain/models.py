@@ -97,7 +97,7 @@ class Ticket(BaseModel):
 
 
 # --- Schemas de saída ------------------------------------------------------------------------------
-# O schema do diagnóstico está completo (Etapa 1); os demais seguem como stubs até a Etapa 2.
+# Um schema por tipo de conteúdo. Todos herdam ``_StrictModel`` (sem campos extras) e validam as regras cruzadas.
 
 # Limites do diagnóstico em um único lugar: o schema os valida e o prompt os recebe como variáveis.
 DIAGNOSIS_MIN_HYPOTHESES = 2
@@ -179,18 +179,180 @@ class Diagnosis(_StrictModel):
         return self
 
 
-class ResolutionSteps(BaseModel):
-    """Passo a passo de resolução. Etapa 2 define: passos adaptados ao perfil, cada um com resultado
-    esperado e o que fazer se falhar."""
+# --- Passo a passo de resolução -----------------------------------------------------------------------
+# Limites em um único lugar: o schema os valida e o prompt os recebe como variáveis.
+STEPS_MIN = 2
+STEPS_MAX = 8
 
 
-class ClarifyingQuestions(BaseModel):
-    """Perguntas de esclarecimento priorizadas. Etapa 2 define: de 3 a 5 perguntas com prioridade e motivo."""
+class ResolutionStep(_StrictModel):
+    """Um passo executável: o que fazer, o que se espera ver e o que fazer se não funcionar."""
+
+    order: int = Field(ge=1, description="Posição do passo, a partir de 1, sem repetir nem pular números.")
+    title: str = Field(min_length=1, description="Título curto do passo.")
+    instruction: str = Field(min_length=1, description="O que o cliente deve fazer, na linguagem do perfil.")
+    expected_result: str = Field(min_length=1, description="O que o cliente deve observar se o passo der certo.")
+    if_it_fails: str = Field(min_length=1, description="O que fazer se o resultado esperado não aparecer.")
 
 
-class FlowSummary(BaseModel):
-    """Resumo do fluxo como árvore de decisão (nós e arestas). Etapa 2 define o grafo; o ASCII é desenhado
-    por código (ADR 0008)."""
+class ResolutionSteps(_StrictModel):
+    """Passo a passo de resolução adaptado ao perfil: abertura, passos verificáveis, critério de escalonamento
+    e fechamento. Cada passo traz resultado esperado e plano B, para o cliente saber se avançou."""
+
+    opening: str = Field(min_length=1, description="Abertura curta que contextualiza o atendimento.")
+    steps: list[ResolutionStep] = Field(
+        min_length=STEPS_MIN, max_length=STEPS_MAX, description="Passos na ordem em que devem ser executados."
+    )
+    when_to_escalate: str = Field(
+        min_length=1, description="Em que situação o caso deve ser escalado a outro nível, e para quem."
+    )
+    closing: str = Field(min_length=1, description="Fechamento curto, com a próxima ação combinada.")
+
+    @model_validator(mode="after")
+    def _check_order(self) -> ResolutionSteps:
+        """Exige a numeração 1, 2, 3... na ordem em que os passos aparecem (a interface mostra ``order``)."""
+        if [step.order for step in self.steps] != list(range(1, len(self.steps) + 1)):
+            raise ValueError("steps[].order deve ser 1, 2, 3... na ordem em que os passos aparecem")
+        return self
+
+
+# --- Perguntas de esclarecimento ----------------------------------------------------------------------
+QUESTIONS_MIN = 3
+QUESTIONS_MAX = 5
+
+
+class ClarifyingQuestion(_StrictModel):
+    """Uma pergunta ao cliente, com o motivo e o que a resposta destrava."""
+
+    priority: int = Field(ge=1, description="Prioridade a partir de 1 (1 = a mais importante), sem repetir.")
+    question: str = Field(min_length=1, description="A pergunta, em uma frase, pedindo uma só informação.")
+    why_it_matters: str = Field(min_length=1, description="Por que a resposta é necessária para avançar.")
+    unlocks: str = Field(min_length=1, description="Qual hipótese ou dúvida a resposta ajuda a confirmar ou descartar.")
+
+
+class ClarifyingQuestions(_StrictModel):
+    """Perguntas de esclarecimento priorizadas: só o necessário para avançar o atendimento."""
+
+    questions: list[ClarifyingQuestion] = Field(
+        min_length=QUESTIONS_MIN, max_length=QUESTIONS_MAX, description="Da mais para a menos prioritária."
+    )
+    can_proceed_without_answers: bool = Field(
+        description="Verdadeiro se o atendimento consegue avançar com o que já se sabe, sem as respostas."
+    )
+    proceed_note: str = Field(
+        min_length=1, description="Em uma frase: o que dá para fazer já, ou por que as respostas são indispensáveis."
+    )
+
+    @model_validator(mode="after")
+    def _check_priorities(self) -> ClarifyingQuestions:
+        """Exige prioridades 1, 2, 3... na ordem em que as perguntas aparecem (a mais importante primeiro)."""
+        if [q.priority for q in self.questions] != list(range(1, len(self.questions) + 1)):
+            raise ValueError("questions[].priority deve ser 1, 2, 3... na ordem em que as perguntas aparecem")
+        return self
+
+
+# --- Resumo visual do fluxo (árvore de decisão) -------------------------------------------------------
+FLOW_MIN_NODES = 4
+FLOW_MAX_NODES = 14
+FLOW_LABEL_MAX_CHARS = 100
+
+
+class FlowNodeType(StrEnum):
+    """Tipos de nó do fluxograma: início, ação, decisão (pergunta com ramos) e fim."""
+
+    START = "start"
+    ACTION = "action"
+    DECISION = "decision"
+    END = "end"
+
+
+class FlowNode(_StrictModel):
+    """Um nó do fluxo."""
+
+    id: str = Field(min_length=1, description='Identificador único e curto, como "n1".')
+    type: FlowNodeType
+    label: str = Field(min_length=1, max_length=FLOW_LABEL_MAX_CHARS, description="Texto curto do nó.")
+
+
+class FlowEdge(_StrictModel):
+    """Aresta dirigida entre dois nós. Nas decisões o rótulo nomeia o ramo (por exemplo, Sim ou Não)."""
+
+    source: str = Field(min_length=1, description="Id do nó de origem.")
+    target: str = Field(min_length=1, description="Id do nó de destino.")
+    label: str = Field(description="Rótulo do ramo; obrigatório quando a origem é uma decisão, vazio nos demais.")
+
+
+class FlowSummary(_StrictModel):
+    """Resumo do fluxo como árvore de decisão (nós e arestas). O ASCII é desenhado por código a partir daqui
+    (ADR 0008), então a estrutura precisa ser íntegra: o validador rejeita o que o desenho não saberia mostrar."""
+
+    nodes: list[FlowNode] = Field(min_length=FLOW_MIN_NODES, max_length=FLOW_MAX_NODES)
+    edges: list[FlowEdge] = Field(min_length=FLOW_MIN_NODES - 1)
+
+    @model_validator(mode="after")
+    def _check_integrity(self) -> FlowSummary:
+        """Valida ids únicos, um único ``start``, arestas com extremos existentes, grau de cada tipo de nó,
+        alcance a partir do início e ausência de ciclos. Regras cruzadas não cabem no JSON Schema; falhar aqui
+        aciona o reparo com a mensagem exata do problema."""
+        ids = [node.id for node in self.nodes]
+        if len(ids) != len(set(ids)):
+            raise ValueError("os ids dos nós devem ser únicos")
+        known = set(ids)
+
+        starts = [n for n in self.nodes if n.type is FlowNodeType.START]
+        if len(starts) != 1:
+            raise ValueError(f"deve haver exatamente um nó start (há {len(starts)})")
+        if not any(n.type is FlowNodeType.END for n in self.nodes):
+            raise ValueError("deve haver ao menos um nó end")
+
+        outgoing: dict[str, list[FlowEdge]] = {node_id: [] for node_id in ids}
+        incoming: dict[str, int] = dict.fromkeys(ids, 0)
+        for edge in self.edges:
+            for end_name, end_id in (("origem", edge.source), ("destino", edge.target)):
+                if end_id not in known:
+                    raise ValueError(f"aresta com {end_name} inexistente: {end_id!r}")
+            if edge.source == edge.target:
+                raise ValueError(f"aresta de {edge.source!r} para ele mesmo")
+            outgoing[edge.source].append(edge)
+            incoming[edge.target] += 1
+
+        for node in self.nodes:
+            out = outgoing[node.id]
+            if node.type is FlowNodeType.START and incoming[node.id]:
+                raise ValueError("o nó start não pode receber arestas")
+            if node.type is FlowNodeType.END and out:
+                raise ValueError(f"o nó end {node.id!r} não pode ter arestas de saída")
+            if node.type in (FlowNodeType.START, FlowNodeType.ACTION) and len(out) != 1:
+                raise ValueError(f"o nó {node.type.value} {node.id!r} deve ter exatamente 1 aresta de saída")
+            if node.type is FlowNodeType.DECISION:
+                if len(out) < 2:
+                    raise ValueError(f"a decisão {node.id!r} deve ter ao menos 2 ramos")
+                labels = [edge.label.strip().casefold() for edge in out]
+                if not all(labels):
+                    raise ValueError(f"os ramos da decisão {node.id!r} devem ter rótulo (Sim ou Não)")
+                if len(labels) != len(set(labels)):
+                    raise ValueError(f"os ramos da decisão {node.id!r} devem ter rótulos diferentes")
+
+        # Busca em profundidade com três cores: aresta para um nó "em visita" fecha um ciclo.
+        state: dict[str, int] = {}  # 1 = em visita, 2 = concluído
+        stack: list[tuple[str, int]] = [(starts[0].id, 0)]
+        state[starts[0].id] = 1
+        while stack:
+            node_id, index = stack.pop()
+            if index < len(outgoing[node_id]):
+                stack.append((node_id, index + 1))
+                target = outgoing[node_id][index].target
+                if state.get(target) == 1:
+                    raise ValueError(f"o fluxo tem um ciclo passando por {target!r}")
+                if target not in state:
+                    state[target] = 1
+                    stack.append((target, 0))
+            else:
+                state[node_id] = 2
+        unreachable = [node_id for node_id in ids if node_id not in state]
+        if unreachable:
+            raise ValueError(f"nós não alcançáveis a partir do start: {', '.join(unreachable)}")
+        return self
 
 
 # --- Registro de execução (contrato em docs/planejamento/01-arquitetura.md) -------------------------
