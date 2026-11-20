@@ -3,7 +3,7 @@
 Assistente de suporte ao cliente com respostas técnicas personalizadas por perfil (nível técnico, estilo de
 comunicação e canal), feito para o desafio técnico "Estágio em IA e Engenharia de Prompt".
 
-> README mínimo (até a Etapa 2: os quatro tipos de conteúdo). O README completo, com arquitetura, exemplos de saída e limitações, chega
+> README mínimo (até a Etapa 3: cache, histórico e robustez). O README completo, com arquitetura, exemplos de saída e limitações, chega
 > na Etapa 6. O plano está em [`docs/planejamento/`](docs/planejamento/) e as decisões em [`docs/adr/`](docs/adr/).
 
 Repositório: https://github.com/krosct/FellowSupport.git
