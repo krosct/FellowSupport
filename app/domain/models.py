@@ -367,6 +367,14 @@ RUN_SCHEMA_VERSION = 1
 
 RunStatus = Literal["ok", "error"]
 
+# Identificador curto da execução (parte do nome do arquivo salvo): 12 caracteres hexadecimais. O padrão também
+# valida o id vindo de fora (URL, CLI) antes de ele virar parte de um caminho ou de um glob.
+RUN_ID_LENGTH = 12
+RUN_ID_PATTERN = rf"[0-9a-f]{{{RUN_ID_LENGTH}}}"
+
+# Chave de cache: SHA-256 em hexadecimal (64 caracteres), também usada como nome do arquivo em ``var/cache/``.
+CACHE_KEY_PATTERN = r"[0-9a-f]{64}"
+
 
 class RunTicket(BaseModel):
     """Ticket como foi usado na execução: ``id`` é ``None`` quando o texto foi digitado à mão."""
@@ -396,8 +404,9 @@ class RunRecord(BaseModel):
     """Uma execução de geração, gravada em um arquivo JSON (ADR 0009). Execuções com erro também são gravadas,
     mas nunca entram no cache (ADR 0018).
 
-    ``cache_key``, ``cache_hit`` e ``source_run_id`` são preenchidos pela Etapa 3; ``evaluation`` e
-    ``llm_evaluation``, pela Etapa 4. Já fazem parte do contrato para o formato não mudar de versão.
+    ``cache_key`` vai em toda execução (inclusive com erro e com o cache desligado), para localizar execuções
+    equivalentes. ``cache_hit`` e ``source_run_id`` marcam o reaproveitamento (ADR 0028). ``evaluation`` e
+    ``llm_evaluation`` são preenchidos na Etapa 4; já fazem parte do contrato para o formato não mudar de versão.
     """
 
     schema_version: int = RUN_SCHEMA_VERSION
@@ -417,7 +426,7 @@ class RunRecord(BaseModel):
     cache_key: str | None = None
     cache_hit: bool = False
     source_run_id: str | None = None
-    attempts: int = 1  # 1 = saiu de primeira; 2 = precisou do reparo
+    attempts: int = 1  # chamadas ao LLM: 0 = cache hit; 1 = saiu de primeira; 2 = precisou do reparo
     latency_ms: int = 0
     usage: dict[str, int] = Field(default_factory=dict)
     prompt_messages: list[dict[str, str]] = Field(default_factory=list)
@@ -426,6 +435,17 @@ class RunRecord(BaseModel):
     error: RunError | None = None
     evaluation: dict | None = None
     llm_evaluation: dict | None = None
+
+
+class CacheEntry(BaseModel):
+    """Entrada do cache: aponta da chave para a execução de origem, que guarda a saída (ADR 0010 e 0028).
+
+    O cache não duplica a saída: um único registro de execução continua sendo a fonte da verdade.
+    """
+
+    cache_key: str
+    source_run_id: str
+    created_at: str  # ISO 8601 com o fuso de APP_TIMEZONE
 
 
 # Mapa tipo de conteúdo -> schema de saída esperado do LLM.
