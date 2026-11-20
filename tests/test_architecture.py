@@ -1,4 +1,4 @@
-"""Garante a regra hexagonal (ADR 0002): domínio e portas não dependem de infraestrutura."""
+"""Garante a regra hexagonal (ADR 0002): domínio, portas e serviços não dependem de infraestrutura."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from app.config import BASE_DIR
 # Bibliotecas e camadas que o núcleo nunca pode importar.
 PROIBIDOS = {
     "fastapi", "starlette", "openai", "httpx", "uvicorn", "pydantic_settings",
-    "app.adapters", "app.container",
+    "app.adapters", "app.container", "app.config", "pathlib", "os", "tempfile", "shutil",
 }
 
 
@@ -24,8 +24,8 @@ def _imports(pasta: str) -> set[tuple[str, str]]:
     return achados
 
 
-def test_dominio_e_portas_nao_importam_infraestrutura() -> None:
-    for pasta in ("domain", "ports"):
+def test_dominio_portas_e_servicos_nao_importam_infraestrutura() -> None:
+    for pasta in ("domain", "ports", "services"):
         for arquivo, modulo in _imports(pasta):
             for proibido in PROIBIDOS:
                 assert not (modulo == proibido or modulo.startswith(proibido + ".")), (
