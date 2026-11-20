@@ -10,6 +10,13 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+# Produto fictício dos tickets, definido uma vez e inserido nos prompts como variável.
+PRODUCT_NAME = "NuvemPonto"
+PRODUCT_DESCRIPTION = "um sistema em nuvem de controle de ponto e jornada de trabalho"
+
+# Título dado ao ticket digitado à mão (não vem do catálogo).
+FREE_TICKET_TITLE = "Ticket digitado"
+
 
 class _LabeledEnum(StrEnum):
     """Enum de texto com ``label`` pronto para exibição (primeira letra maiúscula)."""

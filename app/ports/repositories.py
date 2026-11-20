@@ -1,7 +1,7 @@
 """Portas de repositório (ADR 0002).
 
 O núcleo depende só destes contratos; o armazenamento concreto (JSON em disco hoje, outro amanhã) fica em
-``adapters/storage``. Etapas seguintes acrescentam ``RunRepo``, ``ComparisonRepo`` e ``CacheStore``.
+``adapters/storage``. Etapas seguintes acrescentam ``ComparisonRepo`` e ``CacheStore``.
 """
 
 from __future__ import annotations
@@ -32,4 +32,28 @@ class TicketRepo(Protocol):
 
     def get(self, ticket_id: str) -> Ticket:
         """Ticket pelo id. Levanta ``NotFound`` se não existir."""
+        ...
+
+
+class PromptStore(Protocol):
+    """Leitura dos arquivos de prompt versionados (``prompts/<versão>/``).
+
+    O registro de versões (domínio) calcula hash e valida metadados; esta porta só entrega nomes e textos, para
+    o domínio não tocar o disco.
+    """
+
+    def list_versions(self) -> list[str]:
+        """Nomes das versões existentes (ex.: ``["v1", "v2"]``), sem ordem garantida."""
+        ...
+
+    def list_files(self, version: str) -> list[str]:
+        """Nomes dos arquivos de conteúdo da versão, sem o ``meta.json``. Levanta ``NotFound`` se não existir."""
+        ...
+
+    def read_text(self, version: str, filename: str) -> str:
+        """Texto exato do arquivo (sem tradução de quebras de linha). Levanta ``NotFound`` se não existir."""
+        ...
+
+    def read_meta(self, version: str) -> dict:
+        """Conteúdo do ``meta.json`` da versão. Levanta ``NotFound`` ou ``ValidationFailed`` (JSON inválido)."""
         ...
