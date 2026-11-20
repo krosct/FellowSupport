@@ -13,6 +13,8 @@ from typing import Literal
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.ports.llm import StructuredMode
+
 # Raiz do repositório. Caminhos relativos do .env (ex.: ``catalog``) são resolvidos a partir dela, para que a
 # API e a CLI funcionem independentemente do diretório em que são iniciadas.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,8 +24,6 @@ FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 # Provedores aceitos. ``fake`` roda o projeto inteiro sem chave (ADR 0023).
 LlmProvider = Literal["openrouter", "fake"]
-# Estratégias de saída estruturada (ADR 0004).
-StructuredMode = Literal["json_schema", "json_object", "prompt"]
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 
 
