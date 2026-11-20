@@ -14,13 +14,21 @@ import re
 from collections.abc import Mapping, Sequence
 from string import Template
 
+from app.domain.channel_rules import channel_format_instruction
 from app.domain.errors import NotFound, ValidationFailed
 from app.domain.models import (
     DIAGNOSIS_MAX_HYPOTHESES,
     DIAGNOSIS_MAX_MISSING_INFO,
     DIAGNOSIS_MIN_HYPOTHESES,
+    FLOW_LABEL_MAX_CHARS,
+    FLOW_MAX_NODES,
+    FLOW_MIN_NODES,
     PRODUCT_DESCRIPTION,
     PRODUCT_NAME,
+    QUESTIONS_MAX,
+    QUESTIONS_MIN,
+    STEPS_MAX,
+    STEPS_MIN,
     Channel,
     CommStyle,
     Confidence,
@@ -56,6 +64,13 @@ _TYPE_VARIABLES: dict[ContentType, dict[str, str]] = {
         "max_hypotheses": str(DIAGNOSIS_MAX_HYPOTHESES),
         "max_missing_info": str(DIAGNOSIS_MAX_MISSING_INFO),
         "confidence_levels": ", ".join(f'"{c.value}"' for c in Confidence),
+    },
+    ContentType.RESOLUTION_STEPS: {"min_steps": str(STEPS_MIN), "max_steps": str(STEPS_MAX)},
+    ContentType.CLARIFYING_QUESTIONS: {"min_questions": str(QUESTIONS_MIN), "max_questions": str(QUESTIONS_MAX)},
+    ContentType.FLOW_SUMMARY: {
+        "min_nodes": str(FLOW_MIN_NODES),
+        "max_nodes": str(FLOW_MAX_NODES),
+        "label_max_chars": str(FLOW_LABEL_MAX_CHARS),
     },
 }
 
@@ -104,7 +119,8 @@ class PromptBuilder:
 
         Variáveis disponíveis nos templates: ``product_name``, ``product_description``, ``customer_name``,
         ``tech_level``, ``comm_style``, ``channel`` (texto de ``adaptation.json`` para o valor do perfil),
-        ``ticket_text`` e as variáveis do tipo (ex.: ``min_hypotheses``).
+        ``channel_format`` (restrição de formato do canal, de ``channel_rules``), ``ticket_text`` e as variáveis
+        do tipo (ex.: ``min_hypotheses``, ``min_steps``, ``max_nodes``).
         """
         type_file = type_prompt_file(content_type)
         if not self._registry.has_file(version, type_file):
@@ -116,6 +132,7 @@ class PromptBuilder:
             "product_description": PRODUCT_DESCRIPTION,
             "customer_name": profile.name,
             "ticket_text": _TICKET_TAG.sub("[ticket]", ticket_text).strip(),
+            "channel_format": channel_format_instruction(profile.channel),
             **_TYPE_VARIABLES.get(content_type, {}),
         }
         for dimension in ADAPTATION_DIMENSIONS:
