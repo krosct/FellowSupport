@@ -31,6 +31,7 @@ Cada ADR registra uma decisão técnica, as alternativas comparadas (com prós, 
 | [0023](0023-provedor-fake.md) | Provedor fake para rodar sem chave | Aceito |
 | [0024](0024-deploy.md) | Deploy via script SSH, systemd de usuário e Caddy | Aceito |
 | [0025](0025-idioma-e-fuso.md) | Idioma pt-BR e horários com fuso configurado | Aceito |
+| [0026](0026-modelo-padrao.md) | Modelo padrão de geração e limite de tokens | Aceito |
 
 ## Template
 
