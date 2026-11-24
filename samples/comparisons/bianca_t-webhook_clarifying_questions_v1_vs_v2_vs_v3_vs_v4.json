@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "comparison_id": "bc0e1e01dafc",
+  "created_at": "2026-11-23T22:38:03-03:00",
+  "scenario": {
+    "customer_id": "bianca",
+    "customer_profile": {
+      "id": "bianca",
+      "name": "Bianca",
+      "tech_level": "avançado",
+      "comm_style": "direto",
+      "channel": "chat"
+    },
+    "ticket": {
+      "id": "t-webhook",
+      "title": "API e webhook retornando 401 e 429",
+      "text": "Nossa integração com a API de eventos começou a falhar hoje por volta das 09:40 (UTC-3). Dois sintomas: 1) o endpoint POST /v2/punches retorna 401 {\"error\":\"invalid_token\"} em cerca de 30% das chamadas, com o mesmo token; 2) quando o job de retry reenvia em lote (200 eventos a cada 30 s) passamos a receber 429 com cabeçalho Retry-After: 60. O token foi gerado em 12/11 e o painel mostra \"expira em 90 dias\". Ontem à noite rotacionamos o segredo de assinatura HMAC do webhook, mas só atualizamos o ambiente de produção; o staging também chama a API e não foi atualizado. Request-ids de exemplo: req_8f21c (401) e req_a07d4 (429). Plano contratado: Pro. Não alteramos nenhum limite."
+    },
+    "content_type": "clarifying_questions",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4.1-flash-1017",
+    "model_used": "deepseek/deepseek-v4.1-flash-1017",
+    "params": {
+      "temperature": 0.1,
+      "max_tokens": 12000,
+      "structured_mode": "json_schema",
+      "reasoning": "high"
+    }
+  },
+  "versions": [
+    {
+      "prompt_version": "v1",
+      "run_id": "ca791053a6bc",
+      "run_path": "var/runs/2026-11-23/20261123T223240_ca791053a6bc.json",
+      "prompt_sha256": "6de7ca6c791fc159f568cc4f5c144e5a6f992f30d8439056ea2ee062e8e4ae8b",
+      "cache_hit": false,
+      "output": {
+        "questions": [
+          {
+            "priority": 1,
+            "question": "A rotação de ontem à noite mexeu só no segredo HMAC do webhook ou também no token da API?",
+            "why_it_matters": "O token foi gerado em 12/11 e o painel indica validade de 90 dias, então a expiração não explica o 401 de hoje; preciso saber se alguma credencial foi trocada ou revogada junto com o segredo.",
+            "unlocks": "Confirma ou descarta a hipótese de credencial trocada/revogada como causa do invalid_token."
+          },
+          {
+            "priority": 2,
+            "question": "Os 401 aparecem só em produção, só no staging ou nos dois?",
+            "why_it_matters": "O staging não recebeu a atualização de ontem e continua chamando a API; saber onde o erro aparece separa credencial desatualizada de falha na plataforma.",
+            "unlocks": "Ajuda a explicar o padrão intermitente de ~30% e a isolar o ambiente afetado."
+          },
+          {
+            "priority": 3,
+            "question": "O job de retry espera o Retry-After: 60 antes de reenviar ou continua disparando o lote a cada 30 s?",
+            "why_it_matters": "Se o reenvio acontece antes do prazo indicado no cabeçalho, o próprio retry pode estar sustentando o 429.",
+            "unlocks": "Distingue 429 autoinfligido pelo ritmo de retry de um limite do plano Pro."
+          },
+          {
+            "priority": 4,
+            "question": "Os 200 eventos vão em uma única requisição em lote ou em 200 chamadas individuais ao /v2/punches?",
+            "why_it_matters": "Preciso da taxa real de requisições por janela para comparar com o limite do plano e avaliar o 429.",
+            "unlocks": "Permite calcular se o volume do job de retry estoura o limite contratado."
+          }
+        ],
+        "can_proceed_without_answers": true,
+        "proceed_note": "Já consigo puxar os request-ids req_8f21c e req_a07d4 e conferir o status do token no painel enquanto você responde."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 4,
+          "justification": "Organiza perguntas diretas acima da v2 por evitar dúvida redundante sobre token único, mas fica abaixo da v4 por ainda sugerir vínculo entre a atualização de ontem e a API."
+        },
+        "customer_fit": {
+          "score": 4,
+          "justification": "Iguala v2 e v3 no vocabulário técnico direto para chat, ficando abaixo apenas da v4 por ter justificativas menos condensadas."
+        },
+        "actionability": {
+          "score": 5,
+          "justification": "Supera v2, v3 e v4 ao combinar quatro perguntas decisivas (incluindo lote único vs. 200 chamadas) com ação imediata do atendente sobre os request-ids no proceed_note."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:38:03-03:00"
+      },
+      "total": 13
+    },
+    {
+      "prompt_version": "v2",
+      "run_id": "ce799b5b8eb6",
+      "run_path": "var/runs/2026-11-23/20261123T223250_ce799b5b8eb6.json",
+      "prompt_sha256": "c928f045f218304a92b2ff33ab3e0d4beb2c6f486148fff4957c9b394fc046ea",
+      "cache_hit": false,
+      "output": {
+        "questions": [
+          {
+            "priority": 1,
+            "question": "Os 401 de hoje aparecem só nas chamadas vindas do staging ou também nas de produção?",
+            "why_it_matters": "Com o mesmo token dando 401 em parte das chamadas, saber a origem separa problema de credencial por ambiente de falha na validação da plataforma.",
+            "unlocks": "Confirma ou descarta que o staging está usando credencial desatualizada e responde por parte dos ~30% de falha."
+          },
+          {
+            "priority": 2,
+            "question": "O staging usa o mesmo token de API da produção ou um token próprio?",
+            "why_it_matters": "Se for o mesmo token, um 401 intermitente aponta para outro caminho; se for token distinto, dá para isolar qual credencial está sendo recusada.",
+            "unlocks": "Ajuda a explicar por que o mesmo token falha em apenas parte das chamadas."
+          },
+          {
+            "priority": 3,
+            "question": "Os 429 começaram junto com os 401 ou só depois que o job de retry passou a reenviar os eventos que falharam?",
+            "why_it_matters": "Reenvio em lote de eventos que já falharam pode estar somando chamadas e estourando o limite, em vez de ser um limite novo.",
+            "unlocks": "Distingue 429 como efeito do retry dos 401 de uma mudança real de limite na conta."
+          },
+          {
+            "priority": 4,
+            "question": "Os 200 eventos do lote saem em uma única chamada ou em 200 chamadas separadas a cada 30 s?",
+            "why_it_matters": "O formato do lote define a taxa real de requisições e permite comparar com o limite aplicado ao plano Pro.",
+            "unlocks": "Permite calcular se o volume do retry por si só justifica o Retry-After: 60."
+          }
+        ],
+        "can_proceed_without_answers": false,
+        "proceed_note": "Já consigo verificar internamente os request-ids req_8f21c e req_a07d4 e o status do token e do limite do plano Pro, mas separar o 401 por ambiente e o 429 do efeito do retry depende dessas respostas."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 3,
+          "justification": "Fica abaixo de v1, v3 e v4 porque a pergunta 2 questiona se o staging usa outro token apesar de o ticket informar \"com o mesmo token\", sem justificar a ressalva."
+        },
+        "customer_fit": {
+          "score": 4,
+          "justification": "Iguala v1 e v3 no tom técnico direto para chat, ficando abaixo da v4 por trazer um proceed_note mais longo e menos seco."
+        },
+        "actionability": {
+          "score": 4,
+          "justification": "Empata com v3 e v4 ao cobrir origem, ordem temporal do 429 e formato do lote com checagem interna imediata, abaixo apenas da v1 pela menor precisão da pergunta 2."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:38:03-03:00"
+      },
+      "total": 11
+    },
+    {
+      "prompt_version": "v3",
+      "run_id": "aa4a1c084d8d",
+      "run_path": "var/runs/2026-11-23/20261123T215451_aa4a1c084d8d.json",
+      "prompt_sha256": "1afbfdb3d81d270d975827ac60aee4a4dc134c7f64b4d5ffa7e54d9ffb6ce846",
+      "cache_hit": false,
+      "output": {
+        "questions": [
+          {
+            "priority": 1,
+            "question": "A rotação de ontem mexeu só no segredo HMAC do webhook ou o token da API também foi reemitido/revogado?",
+            "why_it_matters": "O painel indica token válido por 90 dias, então 401 invalid_token intermitente aponta para credencial revogada ou instância rodando com token antigo.",
+            "unlocks": "Separa causa de credencial de causa de ambiente e define se é preciso reemitir token."
+          },
+          {
+            "priority": 2,
+            "question": "As chamadas que retornam 401 partem do staging (não atualizado) ou da produção?",
+            "why_it_matters": "Só o staging ficou fora da atualização de ontem; se os 401 vierem de lá, o problema é credencial desatualizada, não a API.",
+            "unlocks": "Permite isolar o req_8f21c por origem e descartar falha da plataforma."
+          },
+          {
+            "priority": 3,
+            "question": "O lote de retry envia os 200 eventos como 200 requisições (paralelas ou em série) ou como um único POST em lote?",
+            "why_it_matters": "200 eventos a cada 30 s em requisições paralelas gera rajada que explica o 429; em série ou em lote único, o volume é outro.",
+            "unlocks": "Define se o 429 é excesso de requisições ou de eventos e qual ajuste fazer no job."
+          },
+          {
+            "priority": 4,
+            "question": "O job de retry respeita o Retry-After: 60 ou mantém o ciclo de 30 s?",
+            "why_it_matters": "Reenviar antes do prazo indicado renova o bloqueio e mantém o 429 mesmo com volume dentro do limite.",
+            "unlocks": "Permite orientar o ajuste de backoff e medir se o 429 persiste."
+          }
+        ],
+        "can_proceed_without_answers": false,
+        "proceed_note": "No 429 já dá para agir reduzindo a rajada e respeitando o Retry-After: 60; o 401 não fecha sem saber se o token foi rotacionado e se as chamadas que falham vêm do staging — se as respostas indicarem falha da plataforma, escalar."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 4,
+          "justification": "Equivale à v1 e supera a v2 na lógica das perguntas, mas perde da v4 por ainda associar a atualização de ontem ao 401 na pergunta 2 e usar proceed_note em duas orações."
+        },
+        "customer_fit": {
+          "score": 4,
+          "justification": "Iguala v1 e v2 com termos técnicos avançados precisos no chat, ficando abaixo da v4 por alongar mais o proceed_note."
+        },
+        "actionability": {
+          "score": 4,
+          "justification": "Empata com v2 e v4 ao isolar ambiente, rotação, formato de lote e Retry-After, mas fica abaixo da v1 por não indicar ação imediata sobre os request-ids no proceed_note."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:38:03-03:00"
+      },
+      "total": 12
+    },
+    {
+      "prompt_version": "v4",
+      "run_id": "aba69b5c89e1",
+      "run_path": "var/runs/2026-11-23/20261123T223302_aba69b5c89e1.json",
+      "prompt_sha256": "f8a2a5875cb1c23ff54f2b0e2c2a01a565b8a2e62c602c761e0293a06ce492df",
+      "cache_hit": false,
+      "output": {
+        "questions": [
+          {
+            "priority": 1,
+            "question": "Os 401 do req_8f21c vêm do staging ou de produção?",
+            "why_it_matters": "401 intermitente em ~30% com o mesmo token sugere mais de um cliente/credencial em uso; o staging não foi atualizado na rotação.",
+            "unlocks": "Isola se o 401 é credencial desatualizada em um ambiente específico ou falha generalizada da API."
+          },
+          {
+            "priority": 2,
+            "question": "O token da API foi rotacionado ou revogado junto com o segredo HMAC, ou só o HMAC mudou?",
+            "why_it_matters": "invalid_token pode ser token revogado; HMAC de webhook e token da API são componentes distintos.",
+            "unlocks": "Confirma se existe token antigo/revogado ainda em uso por algum ambiente."
+          },
+          {
+            "priority": 3,
+            "question": "O 429 do req_a07d4 ocorre no POST /v2/punches ou em outro endpoint?",
+            "why_it_matters": "O Retry-After: 60 pode ser limite do endpoint ou do job de retry em lote; a correção é diferente em cada caso.",
+            "unlocks": "Separa o rate limit do endpoint de punches de um limite de outro recurso."
+          },
+          {
+            "priority": 4,
+            "question": "O job de retry já rodava com 200 eventos a cada 30 s antes de hoje, ou o volume/frequência mudou?",
+            "why_it_matters": "200 eventos/30 s é rajada alta; saber se é comportamento novo ou antigo define se o ajuste é no job ou no limite.",
+            "unlocks": "Indica se o 429 vem de um pico novo de chamadas ou de limite já existente."
+          }
+        ],
+        "can_proceed_without_answers": false,
+        "proceed_note": "Já dá para separar os sintomas: HMAC do webhook não é o token da API e staging desatualizado é o suspeito dos 401; falta confirmar origem e endpoint do 429."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 5,
+          "justification": "Supera v1, v2 e v3 ao explicitar que HMAC de webhook e token da API são componentes distintos e manter o proceed_note em uma única frase objetiva."
+        },
+        "customer_fit": {
+          "score": 5,
+          "justification": "Supera v1, v2 e v3 na aderência ao chat direto para perfil avançado, com perguntas secas de uma linha e justificativas ultracondensadas."
+        },
+        "actionability": {
+          "score": 4,
+          "justification": "Iguala v2 e v3 ao amarrar req_8f21c e req_a07d4 direto nas perguntas, mas fica abaixo da v1 por não citar ação imediata do atendente no proceed_note nem checar 1 vs. 200 requisições."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:38:03-03:00"
+      },
+      "total": 14
+    }
+  ],
+  "winner": "v4",
+  "conclusion": "A v4 vence por entregar a máxima concisão para chat direto e separar claramente HMAC de webhook e token da API, apesar de a v1 ter sido mais acionável no proceed_note.",
+  "conclusion_source": "candidato"
+}
