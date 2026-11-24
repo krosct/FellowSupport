@@ -43,7 +43,7 @@ uv pip install --python .venv/bin/python -r requirements-dev.txt
 .venv/bin/python -m app.adapters.cli.main compare <id_v1> <id_v4>
 ```
 
-Outros comandos: `meta`, `profile|ticket list|create|update|delete`, `prompt list|create|delete`, `history generation|comparison`, `show <id>` (detalhes com `--help`). Use `--no-cache` para ignorar a leitura do cache e `--json` para saída estruturada.
+Outros comandos: `meta`, `customer|ticket list|create|update|delete`, `prompt list|create|delete`, `history generation|comparison`, `show <id>` (detalhes com `--help`). Use `--no-cache` para ignorar a leitura do cache e `--json` para saída estruturada.
 
 ### 🌐 Interface Web e API (FastAPI + React)
 

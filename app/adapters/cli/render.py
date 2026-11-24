@@ -179,11 +179,11 @@ def render_table(headers: Sequence[str], rows: Sequence[Sequence[str]], min_widt
     return "\n".join([_format_row(headers), *(_format_row(row) for row in rows)])
 
 
-def render_profiles_table(profiles: Sequence[CustomerProfile]) -> str:
-    """Tabela legível de clientes (perfis) com cabeçalho e colunas alinhadas."""
-    if not profiles:
+def render_customers_table(customers: Sequence[CustomerProfile]) -> str:
+    """Tabela legível de clientes com cabeçalho e colunas alinhadas."""
+    if not customers:
         return "Nenhum cliente encontrado."
-    rows = [(p.id, p.name, p.tech_level.value, p.comm_style.value, p.channel.value) for p in profiles]
+    rows = [(p.id, p.name, p.tech_level.value, p.comm_style.value, p.channel.value) for p in customers]
     return render_table(("ID", "NOME", "NÍVEL", "ESTILO", "CANAL"), rows)
 
 

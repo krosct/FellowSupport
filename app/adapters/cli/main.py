@@ -5,7 +5,7 @@ diretamente via ``Container`` e ``app/services/``, sem depender de servidor nem 
 compartilham exatamente as mesmas regras de negócio, validação, cache e persistência:
 
 - ``meta``: metadados públicos (provedor, versão padrão, tipos, rubrica e limites);
-- ``profile`` e ``ticket`` com ``list``, ``create``, ``update`` e ``delete`` consultam e editam o catálogo
+- ``customer`` e ``ticket`` com ``list``, ``create``, ``update`` e ``delete`` consultam e editam o catálogo
   (ADR 0037);
 - ``prompt`` com ``list``, ``create`` e ``delete`` lista e gerencia versões imutáveis de prompt (``list --details``
   mostra o que mudou em cada versão derivada);
@@ -32,11 +32,11 @@ from app.adapters.cli.render import (
     TEXT_WIDTH,
     render_comparison,
     render_comparisons_table,
+    render_customers_table,
     render_history_table,
     render_meta,
     render_output,
     render_page_info,
-    render_profiles_table,
     render_prompt_detail,
     render_run_header,
     render_scale,
@@ -164,7 +164,7 @@ def _add_page(parser: argparse.ArgumentParser, noun: str, *, suppress_default: b
     )
 
 
-def _add_profile_fields(parser: argparse.ArgumentParser, required: bool) -> None:
+def _add_customer_fields(parser: argparse.ArgumentParser, required: bool) -> None:
     """Campos do cliente: nome, nível técnico, estilo e canal (valores dos enums do domínio)."""
     parser.add_argument("--name", required=required, help="nome do cliente")
     for flag, enum_cls, label in (
@@ -243,7 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json(meta)
 
     _add_catalog_crud(
-        sub, "profile", "cliente", "clientes (perfis)", "mostra só o cliente com este id", _add_profile_fields
+        sub, "customer", "cliente", "clientes", "mostra só o cliente com este id", _add_customer_fields
     )
     _add_catalog_crud(
         sub, "ticket", "ticket", "tickets", "mostra o ticket completo com este id", _add_ticket_fields
@@ -266,7 +266,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json(prompt_delete)
 
     gen = sub.add_parser("generate", help="gera um conteúdo para um cliente e um ticket e salva a execução em JSON")
-    gen.add_argument("--customer", required=True, metavar="ID", help="id do cliente (veja o comando profile list)")
+    gen.add_argument("--customer", required=True, metavar="ID", help="id do cliente (veja o comando customer list)")
     gen.add_argument("--ticket", required=True, metavar="ID", help="id do ticket (veja o comando ticket list)")
     gen.add_argument(
         "--type", dest="content_type", default=ContentType.DIAGNOSIS.value,
@@ -389,13 +389,13 @@ def _cmd_meta(container: Container, args: argparse.Namespace) -> None:
         print(render_meta(meta_dict))
 
 
-def _list_profiles(container: Container, args: argparse.Namespace) -> None:
+def _list_customers(container: Container, args: argparse.Namespace) -> None:
     """Lista (ou mostra um) cliente."""
-    profiles = [container.profiles.get(args.id)] if args.id else container.profiles.list_all()
+    customers = [container.profiles.get(args.id)] if args.id else container.profiles.list_all()
     if args.json:
-        _dump([p.model_dump(mode="json") for p in profiles])
+        _dump([c.model_dump(mode="json") for c in customers])
         return
-    print(render_profiles_table(profiles))
+    print(render_customers_table(customers))
 
 
 def _print_ticket(ticket: Ticket) -> None:
@@ -428,13 +428,13 @@ def _confirm_delete(args: argparse.Namespace, what: str) -> bool:
     return answer.lower() in YES_ANSWERS
 
 
-def _cmd_profile(container: Container, args: argparse.Namespace) -> None:
-    """``profile list|create|update|delete`` usando os casos de uso de ``services/catalog``."""
+def _cmd_customer(container: Container, args: argparse.Namespace) -> None:
+    """``customer list|create|update|delete`` usando os casos de uso de ``services/catalog``."""
     if args.action == "list":
-        _list_profiles(container, args)
+        _list_customers(container, args)
         return
     if args.action == "create":
-        profile = create_profile(
+        customer = create_profile(
             container.profiles,
             args.name,
             TechLevel(args.tech_level),
@@ -445,7 +445,7 @@ def _cmd_profile(container: Container, args: argparse.Namespace) -> None:
     else:
         current = container.profiles.get(args.item_id)
         if args.action == "update":
-            profile = update_profile(
+            customer = update_profile(
                 container.profiles,
                 args.item_id,
                 args.name if args.name is not None else current.name,
@@ -455,15 +455,15 @@ def _cmd_profile(container: Container, args: argparse.Namespace) -> None:
             )
             verb = "atualizado"
         elif _confirm_delete(args, f"o cliente {current.name} ({current.id})"):
-            profile, verb = delete_profile(container.profiles, args.item_id), "removido"
+            customer, verb = delete_profile(container.profiles, args.item_id), "removido"
         else:
             print("Remoção cancelada.")
             return
     if args.json:
-        _dump(profile.model_dump(mode="json"))
+        _dump(customer.model_dump(mode="json"))
         return
     print(f"Cliente {verb}:")
-    print(render_profiles_table([profile]))
+    print(render_customers_table([customer]))
 
 
 def _cmd_ticket(container: Container, args: argparse.Namespace) -> None:
@@ -857,7 +857,7 @@ def _cmd_comparison(container: Container, args: argparse.Namespace) -> None:
 # Subcomando -> função que o executa.
 _COMMANDS: dict[str, Callable[[Container, argparse.Namespace], None]] = {
     "meta": _cmd_meta,
-    "profile": _cmd_profile,
+    "customer": _cmd_customer,
     "ticket": _cmd_ticket,
     "prompt": _cmd_prompt,
     "generate": _cmd_generate,

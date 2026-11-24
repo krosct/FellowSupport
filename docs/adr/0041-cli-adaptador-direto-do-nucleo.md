@@ -53,4 +53,4 @@ A CLI é um adaptador de entrada direto sobre o `Container` e `app/services/` (o
 ## Como verificar
 
 - `pytest -q tests/test_architecture.py tests/test_cli.py tests/test_cli_comparison.py tests/test_errors_mapping.py`
-- Rodar `.venv/bin/python -m app.adapters.cli.main profile list` com a API desligada e observar código de saída `0`.
+- Rodar `.venv/bin/python -m app.adapters.cli.main customer list` com a API desligada e observar código de saída `0`.

@@ -24,7 +24,7 @@ def container(settings: Settings):
 
 
 def test_profile_list_em_tabela(container, capsys) -> None:
-    assert cli(["profile", "list"], container) == EXIT_OK
+    assert cli(["customer", "list"], container) == EXIT_OK
     saida = capsys.readouterr().out
     linhas = saida.splitlines()
     assert linhas[0].split() == ["ID", "NOME", "NÍVEL", "ESTILO", "CANAL"]
@@ -33,13 +33,13 @@ def test_profile_list_em_tabela(container, capsys) -> None:
 
 
 def test_profile_list_json(container, capsys) -> None:
-    assert cli(["profile", "list", "--json"], container) == EXIT_OK
+    assert cli(["customer", "list", "--json"], container) == EXIT_OK
     dados = json.loads(capsys.readouterr().out)
     assert {p["id"] for p in dados} == {"marta", "rafael", "bianca", "jorge", "amanda"}
 
 
 def test_profile_list_por_id(container, capsys) -> None:
-    assert cli(["profile", "list", "--id", "jorge"], container) == EXIT_OK
+    assert cli(["customer", "list", "--id", "jorge"], container) == EXIT_OK
     saida = capsys.readouterr().out
     assert "Seu Jorge" in saida and "marta" not in saida
 
@@ -107,7 +107,7 @@ def _modulo(env: dict[str, str], *args: str) -> subprocess.CompletedProcess:
 
 def test_execucao_como_modulo_sem_servidor(tmp_path: Path) -> None:
     env, _ = _cli_env(tmp_path)
-    r = _modulo(env, "profile", "list", "--json")
+    r = _modulo(env, "customer", "list", "--json")
     assert r.returncode == EXIT_OK, r.stderr
     assert len(json.loads(r.stdout)) == 5
 
@@ -387,22 +387,22 @@ def test_meta_mostra_o_mesmo_conteudo_de_api_meta(container, capsys) -> None:
 
 
 def test_crud_de_cliente(container, capsys) -> None:
-    criar = ["profile", "create", "--name", "Teste", "--tech-level", "leigo", "--comm-style", "direto",
+    criar = ["customer", "create", "--name", "Teste", "--tech-level", "leigo", "--comm-style", "direto",
              "--channel", "chat", "--json"]
     assert cli(criar, container) == EXIT_OK
     novo = json.loads(capsys.readouterr().out)
     assert novo["id"].startswith("c-") and container.profiles.get(novo["id"]).name == "Teste"
-    assert cli(["profile", "update", novo["id"], "--channel", "e-mail"], container) == EXIT_OK
+    assert cli(["customer", "update", novo["id"], "--channel", "e-mail"], container) == EXIT_OK
     assert "Cliente atualizado" in capsys.readouterr().out
     atualizado = container.profiles.get(novo["id"])
     assert atualizado.channel.value == "e-mail" and atualizado.name == "Teste"  # o que não veio ficou como estava
-    assert cli(["profile", "delete", novo["id"], "--yes"], container) == EXIT_OK
-    assert cli(["profile", "list", "--id", novo["id"]], container) == EXIT_NOT_FOUND
+    assert cli(["customer", "delete", novo["id"], "--yes"], container) == EXIT_OK
+    assert cli(["customer", "list", "--id", novo["id"]], container) == EXIT_NOT_FOUND
 
 
 def test_remover_sem_confirmar_nao_remove(container, capsys, monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda prompt="": "n")
-    assert cli(["profile", "delete", "marta"], container) == EXIT_OK
+    assert cli(["customer", "delete", "marta"], container) == EXIT_OK
     assert "Remoção cancelada" in capsys.readouterr().out and container.profiles.get("marta")
 
     def sem_stdin(prompt: str = "") -> str:
