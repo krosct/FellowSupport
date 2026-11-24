@@ -7,7 +7,7 @@ Todas as execuções foram feitas com o modelo real `deepseek/deepseek-v4.1-flas
 
 As notas do campo `evaluation` e as conclusões das comparações são avaliações manuais do candidato pela rubrica fixa
 (`clarity`, `customer_fit`, `actionability`, de 1 a 5; total máximo 15). Nos arquivos de comparação, `run_path` referencia o caminho
-original em `var/runs/` (pasta ignorada no git), e as 12 execuções utilizadas nas 3 comparações estão copiadas integralmente em
+original em `var/runs/` (também versionada), e as 12 execuções utilizadas nas 3 comparações estão copiadas integralmente em
 `evaluated_runs/`. A análise completa do experimento e dos trade-offs está em [`../PROMPT_ENGINEERING_NOTES.md`](../PROMPT_ENGINEERING_NOTES.md).
 
 | Arquivo | O que é |

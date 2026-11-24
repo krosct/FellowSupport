@@ -1,8 +1,7 @@
 # Segredos: nunca versionar
 .env
 
-# Dados de execução (execuções, cache, comparações) e log de eventos
-var/
+# Log de eventos (os dados de execução em var/ são versionados: são a evidência do experimento)
 fellowsupport.log
 
 # Python

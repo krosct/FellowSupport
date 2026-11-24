@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "comparison_id": "7e05bdd29f48",
+  "created_at": "2026-11-23T22:28:50-03:00",
+  "scenario": {
+    "customer_id": "rafael",
+    "customer_profile": {
+      "id": "rafael",
+      "name": "Rafael",
+      "tech_level": "intermediário",
+      "comm_style": "detalhado",
+      "channel": "e-mail"
+    },
+    "ticket": {
+      "id": "t-webhook",
+      "title": "API e webhook retornando 401 e 429",
+      "text": "Nossa integração com a API de eventos começou a falhar hoje por volta das 09:40 (UTC-3). Dois sintomas: 1) o endpoint POST /v2/punches retorna 401 {\"error\":\"invalid_token\"} em cerca de 30% das chamadas, com o mesmo token; 2) quando o job de retry reenvia em lote (200 eventos a cada 30 s) passamos a receber 429 com cabeçalho Retry-After: 60. O token foi gerado em 12/11 e o painel mostra \"expira em 90 dias\". Ontem à noite rotacionamos o segredo de assinatura HMAC do webhook, mas só atualizamos o ambiente de produção; o staging também chama a API e não foi atualizado. Request-ids de exemplo: req_8f21c (401) e req_a07d4 (429). Plano contratado: Pro. Não alteramos nenhum limite."
+    },
+    "content_type": "resolution_steps",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4.1-flash-1017",
+    "model_used": "deepseek/deepseek-v4.1-flash-1017",
+    "params": {
+      "temperature": 0.1,
+      "max_tokens": 12000,
+      "structured_mode": "json_schema",
+      "reasoning": "high"
+    }
+  },
+  "versions": [
+    {
+      "prompt_version": "v1",
+      "run_id": "22484fc97060",
+      "run_path": "var/runs/2026-11-23/20261123T221556_22484fc97060.json",
+      "prompt_sha256": "6de7ca6c791fc159f568cc4f5c144e5a6f992f30d8439056ea2ee062e8e4ae8b",
+      "cache_hit": false,
+      "output": {
+        "opening": "Rafael, obrigado pelo relato detalhado — os dois sintomas (401 intermitente em /v2/punches e 429 no job de retry) têm causas provavelmente diferentes, e o próprio ticket já traz as pistas mais fortes. Abaixo está um roteiro em ordem, do mais simples e seguro para o mais invasivo, para você executar confirmando cada etapa antes de seguir.",
+        "steps": [
+          {
+            "order": 1,
+            "title": "Confirme no painel a validade e o status do token de produção",
+            "instruction": "No painel, abra a informação que hoje mostra 'expira em 90 dias' para o token gerado em 12/11 e confira a data exata de expiração e se o status está ativo (não revogado). Anote a data encontrada.",
+            "expected_result": "Token ativo, com data de expiração futura e coerente com os 90 dias contados a partir de 12/11.",
+            "if_it_fails": "Se o token aparecer expirado ou revogado, gere um novo token e atualize todos os ambientes que chamam a API antes de reativar o job; nesse caso, trate a troca primeiro e só depois volte aos demais passos."
+          },
+          {
+            "order": 2,
+            "title": "Compare a credencial usada em produção com a do staging",
+            "instruction": "Verifique qual credencial de API está configurada no staging (o ambiente que não foi atualizado) e compare com a que produção usa hoje. Se forem diferentes, atualize o staging para usar a mesma credencial válida de produção.",
+            "expected_result": "Os dois ambientes apontando para o mesmo token válido, sem credencial antiga remanescente em arquivo de configuração ou variável de ambiente.",
+            "if_it_fails": "Se não for possível identificar qual credencial o staging usa, não envie o valor do token por e-mail: apenas registre a dúvida e siga para o passo 3, que localiza a origem pelos logs."
+          },
+          {
+            "order": 3,
+            "title": "Localize a origem dos 401 pelo request-id req_8f21c",
+            "instruction": "Busque nos logs o request-id req_8f21c e os demais 401 ocorridos a partir das 09:40 (UTC-3), identificando de qual host, ambiente ou IP partiu cada chamada.",
+            "expected_result": "Os 401 concentrados em um subconjunto de origem (por exemplo, instâncias do staging ou um worker com configuração antiga), e não distribuídos por todas as chamadas.",
+            "if_it_fails": "Se os 401 vierem de todas as origens, inclusive de produção com o token confirmado como válido no passo 1, interrompa as alterações e escale conforme a seção de escalonamento."
+          },
+          {
+            "order": 4,
+            "title": "Faça o job de retry respeitar o Retry-After",
+            "instruction": "Ajuste o job que reenvia em lote para, ao receber 429 com Retry-After: 60, pausar os envios por 60 segundos antes de tentar novamente, em vez de continuar no ciclo de 30 s.",
+            "expected_result": "O job passa a aguardar o intervalo indicado pelo servidor e os 429 deixam de se repetir em sequência.",
+            "if_it_fails": "Se mesmo respeitando o Retry-After os 429 continuarem, mantenha o job pausado e vá para o passo 5."
+          },
+          {
+            "order": 5,
+            "title": "Reduza o volume por envio e amplie o intervalo entre lotes",
+            "instruction": "Diminua o tamanho do lote (hoje 200 eventos) e aumente o intervalo entre envios (hoje 30 s), distribuindo o mesmo volume ao longo do tempo.",
+            "expected_result": "As chamadas passam a ficar abaixo do limite e o 429 desaparece, inclusive enquanto o backlog é drenado.",
+            "if_it_fails": "Se o 429 persistir mesmo com lotes pequenos e intervalos maiores, pare o job e escale para verificação dos limites aplicados ao plano Pro."
+          },
+          {
+            "order": 6,
+            "title": "Atualize o segredo HMAC do webhook também no staging",
+            "instruction": "Aplique no staging o mesmo segredo de assinatura HMAC do webhook que já foi rotacionado em produção.",
+            "expected_result": "O staging volta a validar corretamente as assinaturas dos webhooks, sem erros de assinatura.",
+            "if_it_fails": "Se não localizar onde o segredo está configurado no staging, registre o ponto e trate junto com o time responsável pela integração."
+          }
+        ],
+        "when_to_escalate": "Escale para o Nível 3 (engenharia de plataforma) se os 401 continuarem partindo de produção mesmo com o token confirmado como ativo e idêntico em todos os ambientes, ou se os 429 persistirem depois de respeitar o Retry-After e de reduzir lote e intervalo. Envie junto os request-ids req_8f21c e req_a07d4, os horários aproximados, a lista de origens identificadas no passo 3 e o plano contratado (Pro). Se em qualquer momento houver suspeita de exposição do token ou do segredo HMAC, escale imediatamente para o time de segurança.",
+        "closing": "Comece pelo passo 1 e responda a este e-mail com o resultado dos passos 1 a 3 — com isso separamos o que é problema de credencial do que é limite de requisições. Se os 401 se resolverem na origem e os 429 sumirem com o ajuste do retry, basta confirmar o comportamento estável por um ciclo completo antes de encerrarmos."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 3,
+          "justification": "Organiza os seis passos em sequência, mas empata com a v3 e perde de v2 e v4 ao misturar credenciais no início e isolar o HMAC no final sem explicar a relação."
+        },
+        "customer_fit": {
+          "score": 4,
+          "justification": "Usa tom cordial de e-mail e vocabulário intermediário como a v2, mas fica abaixo de v3 e v4 por explicar menos o contexto de cada verificação."
+        },
+        "actionability": {
+          "score": 4,
+          "justification": "Traz contingências seguras sem expor tokens como a v2, superando a v3 na precisão do passo a passo, mas perde da v4 por supor data exata no painel."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:28:50-03:00"
+      },
+      "total": 11
+    },
+    {
+      "prompt_version": "v2",
+      "run_id": "44b635b8a21b",
+      "run_path": "var/runs/2026-11-23/20261123T221630_44b635b8a21b.json",
+      "prompt_sha256": "c928f045f218304a92b2ff33ab3e0d4beb2c6f486148fff4957c9b394fc046ea",
+      "cache_hit": false,
+      "output": {
+        "opening": "Olá, Rafael. Entendi que a integração apresenta 401 intermitente no POST /v2/punches e 429 no job de retry, e vamos separar os dois sintomas para tratar primeiro a credencial/ambiente e depois o ritmo de reenvio.",
+        "steps": [
+          {
+            "order": 1,
+            "title": "Isole as chamadas com 401 por ambiente",
+            "instruction": "Nos logs da integração, localize o request-id req_8f21c e os demais 401 ocorridos por volta das 09:40 (UTC-3) e identifique se a chamada partiu de produção, de staging ou de um worker/instância específico.",
+            "expected_result": "Você deve conseguir associar cada 401 a um ambiente ou instância de origem.",
+            "if_it_fails": "Se os logs não tiverem essa informação, registre horário, endpoint e request-id e siga para o passo 2; não altere o token ainda."
+          },
+          {
+            "order": 2,
+            "title": "Confirme o status e a expiração do token no painel",
+            "instruction": "No painel, confira o status e a data exata de expiração do token usado pela integração, sem enviar o valor do token por e-mail.",
+            "expected_result": "O token deve aparecer como ativo e vigente, compatível com a informação de expiração em 90 dias.",
+            "if_it_fails": "Se o painel indicar token expirado ou revogado, atualize a credencial nos ambientes pelo canal seguro que vocês já utilizam e repita o teste do passo 6."
+          },
+          {
+            "order": 3,
+            "title": "Atualize o segredo HMAC no staging",
+            "instruction": "Atualize no staging o segredo HMAC do webhook para o valor vigente em produção, usando o canal seguro que vocês já utilizam; não envie o segredo por e-mail.",
+            "expected_result": "O staging passa a validar as assinaturas de webhook com o segredo atual e deixa de usar a configuração antiga. Este passo regulariza o webhook, mas não substitui a validação do token da API.",
+            "if_it_fails": "Se o staging não tiver configuração própria de webhook ou a atualização não for possível, registre a situação e siga para o passo 4."
+          },
+          {
+            "order": 4,
+            "title": "Respeite o Retry-After no job de retry",
+            "instruction": "Configure o job para, ao receber 429 com Retry-After: 60, pausar os reenvios por pelo menos 60 segundos antes de tentar novamente.",
+            "expected_result": "O job não deve reenviar durante a janela indicada e os 429 devem diminuir.",
+            "if_it_fails": "Se o job não tiver controle de pausa, desative temporariamente o retry em lote e reenvie em lotes menores até ajustar o comportamento."
+          },
+          {
+            "order": 5,
+            "title": "Reduza o lote e a concorrência do retry",
+            "instruction": "Diminua o lote de 200 eventos a cada 30 s para um volume menor e mantenha uma única execução por vez, aumentando o intervalo se necessário.",
+            "expected_result": "As chamadas devem voltar a ser aceitas sem 429.",
+            "if_it_fails": "Se os 429 continuarem mesmo com lote menor e Retry-After respeitado, pare o job e escale com o request-id req_a07d4 e os horários das tentativas."
+          },
+          {
+            "order": 6,
+            "title": "Faça um teste controlado e colete evidências",
+            "instruction": "Envie uma única chamada de teste ao POST /v2/punches e registre o request-id retornado, o horário em UTC-3 e o ambiente de origem.",
+            "expected_result": "A chamada deve retornar sucesso, sem 401.",
+            "if_it_fails": "Se o 401 persistir mesmo com o token ativo e o staging alinhado, pare os testes e escale com o request-id do teste e o req_8f21c."
+          }
+        ],
+        "when_to_escalate": "Se, após alinhar o staging e confirmar que o token está ativo e vigente, os 401 continuarem ocorrendo de forma intermitente; ou se os 429 persistirem mesmo respeitando o Retry-After: 60 e reduzindo lote/concorrência; ou se houver indício de falha da plataforma ou risco de perda de eventos, encaminhe o caso para o time de engenharia/plataforma do NuvemPonto (nível 3), com os request-ids req_8f21c e req_a07d4, horários em UTC-3, endpoint e ambientes envolvidos.",
+        "closing": "A próxima ação é executar os passos 1 a 3 e, em seguida, os passos 4 a 6. Se qualquer sintoma continuar, responda este e-mail com os request-ids e horários para eu encaminhar ao time de plataforma."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 4,
+          "justification": "Supera v1 e v3 ao começar pelos logs e distinguir o HMAC da API no passo 3, mas fica abaixo da v4 por deixar o escalonamento em frase longa única."
+        },
+        "customer_fit": {
+          "score": 4,
+          "justification": "Mantém linguagem intermediária e tom de e-mail corretos como a v1, ficando atrás de v3 e v4 por adotar explicações mais secas para um perfil detalhado."
+        },
+        "actionability": {
+          "score": 4,
+          "justification": "Equivale à v1 com boa ordem de isolamento e supera a v3 sem confundir credenciais, mas perde da v4 por citar passo futuro pelo número e testar só uma origem."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:28:50-03:00"
+      },
+      "total": 12
+    },
+    {
+      "prompt_version": "v3",
+      "run_id": "4ae7f7ba0134",
+      "run_path": "var/runs/2026-11-23/20261123T215405_4ae7f7ba0134.json",
+      "prompt_sha256": "1afbfdb3d81d270d975827ac60aee4a4dc134c7f64b4d5ffa7e54d9ffb6ce846",
+      "cache_hit": false,
+      "output": {
+        "opening": "Olá, Rafael! Obrigado pelo relato detalhado — ele já permite separar bem os dois sintomas. Vamos tratar primeiro os 401 intermitentes, que apontam para o staging não atualizado após a rotação, e depois o 429 do job de retry, que tende a diminuir quando as falhas de autenticação pararem de alimentar os reenvios.",
+        "steps": [
+          {
+            "order": 1,
+            "title": "Confirmar o token ativo e a validade no painel",
+            "instruction": "No painel do NuvemPonto, confira as informações do token que a integração usa: data de geração (12/11), validade exibida (os 90 dias que vocês já observaram) e se existe mais de um token cadastrado para a conta. O objetivo é descartar expiração ou revogação antes de mexer nos ambientes, e registrar sem ambiguidade qual é o token vigente.",
+            "expected_result": "O painel mostra o token como ativo, com a mesma validade de 90 dias já vista, e você consegue identificar claramente qual é o token vigente.",
+            "if_it_fails": "Se o painel indicar token expirado, revogado ou mais de um token cadastrado, anote qual é o vigente e siga para o próximo passo usando essa informação; se não for possível determinar qual token está ativo, escale para o time de plataforma antes de alterar os ambientes."
+          },
+          {
+            "order": 2,
+            "title": "Identificar de qual ambiente vêm os 401",
+            "instruction": "Nos logs da integração, localize as chamadas do request-id de exemplo do 401 (req_8f21c) e verifique, para cada uma, de qual ambiente ela partiu (produção ou staging) e qual credencial foi enviada no cabeçalho de autenticação. O ticket não informa essa origem, e é justamente ela que define se a causa é o staging desatualizado ou algo mais amplo. Vale notar que a rotação do segredo HMAC do webhook, por si só, não deveria invalidar o token da API — por isso a checagem por origem é o ponto central aqui.",
+            "expected_result": "Os 401 se concentram nas chamadas do staging (o ambiente que não foi atualizado após a rotação), enquanto as chamadas de produção com o token vigente são aceitas normalmente.",
+            "if_it_fails": "Se os 401 vierem de produção usando o token vigente, não faz sentido atualizar o staging: pule o próximo passo e vá direto para o escalonamento descrito ao final."
+          },
+          {
+            "order": 3,
+            "title": "Alinhar a credencial do staging com a de produção",
+            "instruction": "Atualize no staging a credencial usada nas chamadas à API, deixando-a igual à que está vigente em produção desde a rotação de ontem, e garanta que nenhum outro processo do ambiente (por exemplo, um worker ou job agendado) continue apontando para o valor antigo.",
+            "expected_result": "As chamadas do staging passam a ser aceitas e os 401 com a mensagem invalid_token deixam de aparecer nos logs desse ambiente.",
+            "if_it_fails": "Se o staging já usava a credencial vigente e os 401 continuarem, registre os novos request-ids e escale para o time de plataforma — nesse cenário há indício de falha na validação do token."
+          },
+          {
+            "order": 4,
+            "title": "Fazer o job de retry respeitar o Retry-After",
+            "instruction": "Ajuste o job para que, ao receber 429, ele leia o cabeçalho Retry-After (60 segundos no exemplo) e aguarde esse tempo antes de tentar novamente, aplicando backoff exponencial com jitter nas tentativas seguintes, em vez de reenviar o lote a cada 30 segundos. Esse ajuste vem depois do alinhamento da credencial porque, enquanto os 401 existirem, o job também reenvia eventos que falharam por autenticação, o que infla o volume e agrava o 429.",
+            "expected_result": "O job passa a espaçar as tentativas conforme o Retry-After e as sequências de 429 diminuem de forma clara.",
+            "if_it_fails": "Se o 429 continuar mesmo com o Retry-After respeitado, reduza o volume de envio no próximo passo."
+          },
+          {
+            "order": 5,
+            "title": "Reduzir a rajada de 200 eventos por ciclo",
+            "instruction": "Divida o lote de 200 eventos em lotes menores e distribua os envios ao longo do intervalo, mantendo uma taxa constante e mais baixa, em vez de concentrar tudo a cada 30 segundos. O ticket não informa o limite exato aplicado ao plano Pro, então o critério prático é ajustar a taxa até parar de receber 429.",
+            "expected_result": "Os envios em lote passam a ser aceitos sem 429, mesmo mantendo o volume total de eventos.",
+            "if_it_fails": "Se os 429 persistirem com taxa baixa e Retry-After respeitado, escale para o time de plataforma para revisar o limite aplicado ao plano Pro."
+          },
+          {
+            "order": 6,
+            "title": "Monitorar os dois sintomas por um ciclo",
+            "instruction": "Acompanhe por um período representativo (por exemplo, uma hora, cobrindo pelo menos dois ciclos do job) a contagem de 401 e de 429 nas chamadas a POST /v2/punches, separando os números por ambiente.",
+            "expected_result": "Zero 401 e zero 429 no período monitorado, com os eventos entregues normalmente.",
+            "if_it_fails": "Se restar qualquer um dos dois sintomas, colete os request-ids e os horários correspondentes e escale com esses dados."
+          }
+        ],
+        "when_to_escalate": "Escale para o time de plataforma (nível 3) em três situações: os 401 com invalid_token continuarem vindo de produção usando o token vigente; o staging já estiver com a credencial atual e ainda receber 401; ou os 429 persistirem mesmo com o Retry-After respeitado e a taxa de envio reduzida. Nesses casos, envie os request-ids (req_8f21c e req_a07d4), os horários e a indicação do ambiente de origem — são falhas que exigem verificação interna da plataforma.",
+        "closing": "Resumindo a ordem: confirmar o token, identificar a origem dos 401, alinhar o staging, ajustar o retry e reduzir a rajada. Assim que concluir o ciclo de monitoramento, me responda com a contagem de 401 e 429 por ambiente; se os números não zerarem, eu já encaminho o caso com os request-ids para o time de plataforma."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 3,
+          "justification": "Explica bem o elo entre 401 e 429, mas empata com a v1 e perde de v2 e v4 ao se contradizer entre os passos 2 e 3 sobre qual credencial foi rotacionada."
+        },
+        "customer_fit": {
+          "score": 5,
+          "justification": "Iguala a v4 e supera v1 e v2 ao entregar explicações detalhadas por e-mail com vocabulário intermediário preciso, como backoff com jitter."
+        },
+        "actionability": {
+          "score": 3,
+          "justification": "Fica abaixo de v1, v2 e v4 porque o passo 3 induz a alinhar o token da API pela rotação do HMAC e falta validar produção e staging ao final."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:28:50-03:00"
+      },
+      "total": 11
+    },
+    {
+      "prompt_version": "v4",
+      "run_id": "1a99e703d4b6",
+      "run_path": "var/runs/2026-11-23/20261123T221658_1a99e703d4b6.json",
+      "prompt_sha256": "f8a2a5875cb1c23ff54f2b0e2c2a01a565b8a2e62c602c761e0293a06ce492df",
+      "cache_hit": false,
+      "output": {
+        "opening": "Olá, Rafael! Obrigado pelo relato detalhado — ele já permite separar dois sintomas distintos: os 401 intermitentes no POST /v2/punches e os 429 no job de retry. Vamos tratar cada um separadamente, começando pelo ajuste mais simples e seguro, e lembrando que o segredo HMAC do webhook é uma credencial diferente do token da API: corrigir um não corrige necessariamente o outro.",
+        "steps": [
+          {
+            "order": 1,
+            "title": "Alinhar o segredo HMAC do webhook no staging",
+            "instruction": "Atualize o segredo de assinatura HMAC do webhook também no ambiente de staging, usando o mesmo valor já aplicado em produção, e confirme que o deploy ou reinício do staging passou a usar o novo valor. Isso elimina a divergência conhecida entre os ambientes. Vale reforçar: esse segredo serve para assinar e validar webhooks e é independente do token da API, então este passo não deve ser tratado como solução dos 401 — ele apenas remove uma variável do cenário.",
+            "expected_result": "O staging passa a usar o mesmo segredo de produção, e você consegue confirmar no ambiente que o valor aplicado é o novo (por exemplo, conferindo a variável de configuração ou o log de inicialização).",
+            "if_it_fails": "Se não for possível aplicar ou confirmar o valor no staging, registre o que ficou pendente e siga para o próximo passo — o diagnóstico dos 401 não depende dessa correção."
+          },
+          {
+            "order": 2,
+            "title": "Rastrear a origem dos 401 pelo request-id",
+            "instruction": "Localize o request-id req_8f21c nos logs da sua integração e identifique qual origem fez a chamada: produção, staging, um worker específico ou uma instância do job. Repita a verificação com outras chamadas que retornaram 401 no mesmo período, por volta das 09:40 (UTC-3). O objetivo é saber se as falhas se concentram em um subconjunto de origens ou se estão distribuídas por todas.",
+            "expected_result": "Você consegue dizer de qual ambiente ou instância vieram os 401 e se eles se concentram em uma origem específica.",
+            "if_it_fails": "Se os logs não permitirem correlacionar o request-id, anote os horários e os endpoints afetados e siga para o próximo passo; esse dado será necessário caso seja preciso escalar."
+          },
+          {
+            "order": 3,
+            "title": "Conferir qual token cada origem está usando",
+            "instruction": "Compare o token usado por cada origem que chama POST /v2/punches — em especial produção e staging — com o token exibido no painel. Verifique se é exatamente o mesmo valor, se existe mais de um token ativo e se a data de expiração mostrada continua coerente com a geração em 12/11 (90 dias).",
+            "expected_result": "Todas as origens apontam para o mesmo token válido, e a expiração no painel confere com a esperada.",
+            "if_it_fails": "Se encontrar alguma origem com token diferente, revogado ou expirado, alinhe essa origem ao token válido; se não houver no painel como emitir ou substituir o token, pare aqui e escale — não tente contornar o 401 com credenciais improvisadas."
+          },
+          {
+            "order": 4,
+            "title": "Respeitar o Retry-After no job de retry",
+            "instruction": "Ajuste o job de retry para que, ao receber 429, ele leia o cabeçalho Retry-After e aguarde o tempo indicado (60 segundos, no caso observado) antes de reenviar o lote, aplicando backoff progressivo se o 429 se repetir.",
+            "expected_result": "Os lotes rejeitados passam a ser reenviados somente após o tempo indicado, e você consegue ver no log essa espera sendo respeitada.",
+            "if_it_fails": "Se o job não conseguir ler o cabeçalho ou continuar reenviando imediatamente, aplique ao menos um intervalo fixo entre tentativas e siga para o próximo passo."
+          },
+          {
+            "order": 5,
+            "title": "Reduzir a pressão do reenvio em lote",
+            "instruction": "Diminua o tamanho do lote (hoje 200 eventos) e/ou aumente o intervalo entre lotes (hoje 30 s), de forma que o reenvio não concentre tantas chamadas no mesmo instante.",
+            "expected_result": "O job conclui o mesmo volume com menos chamadas simultâneas e sem receber 429.",
+            "if_it_fails": "Se os 429 continuarem, confira no painel ou na documentação do plano Pro qual é o limite de requisições contratado e compare com o volume real do job; se o volume legítimo estiver acima desse limite, escale para avaliação."
+          },
+          {
+            "order": 6,
+            "title": "Validar com chamadas controladas",
+            "instruction": "Depois dos ajustes, faça uma chamada de teste a POST /v2/punches a partir de cada origem (produção e staging) e acompanhe o job de retry por um ciclo completo, registrando os novos request-ids tanto dos sucessos quanto de eventuais falhas.",
+            "expected_result": "As chamadas de teste retornam sucesso nas duas origens e o job de retry conclui o ciclo sem 401 nem 429.",
+            "if_it_fails": "Se os 401 persistirem para o mesmo token ou os 429 continuarem, escale com os request-ids novos, os horários em UTC-3, a origem de cada chamada e o volume do job."
+          }
+        ],
+        "when_to_escalate": "Escale para o time de plataforma e engenharia do NuvemPonto se os 401 continuarem após alinhar as credenciais entre as origens, ou se os 429 persistirem mesmo respeitando o Retry-After e reduzindo o lote. Envie os request-ids req_8f21c e req_a07d4, os horários em UTC-3, o ambiente de origem de cada chamada e o volume do job de retry.",
+        "closing": "A próxima ação combinada é alinhar o staging e rastrear a origem do req_8f21c; com esse resultado em mãos, seguimos para os ajustes do job de retry. Responda a este e-mail com o que encontrar em cada passo para darmos continuidade."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 5,
+          "justification": "Supera v1, v2 e v3 ao separar com rigor o segredo HMAC do token da API desde a abertura e resumir o escalonamento em duas frases curtas."
+        },
+        "customer_fit": {
+          "score": 5,
+          "justification": "guala a v3 e supera v1 e v2 ao unir saudação e fechamento de e-mail, termos intermediários adequados e contexto completo em cada passo."
+        },
+        "actionability": {
+          "score": 5,
+          "justification": "Supera v1, v2 e v3 com roteiro seguro sem erro de credencial, referências neutras ao próximo passo e validação final nas duas origens."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:28:50-03:00"
+      },
+      "total": 15
+    }
+  ],
+  "winner": "v4",
+  "conclusion": "A v4 vence por unir o detalhamento e o tom de e-mail da v3 à separação rigorosa entre segredo HMAC e token da API, com escalonamento objetivo e validação nas duas origens.",
+  "conclusion_source": "candidato"
+}

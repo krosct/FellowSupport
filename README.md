@@ -68,12 +68,12 @@ LLM_MAX_TOKENS=12000           # folga para modelos que raciocinam antes do JSON
 
 ## 📄 Persistência e exemplo de JSON
 
-Os arquivos gerados localmente ficam fora do Git:
+A pasta `var/` é versionada: traz as execuções e comparações do experimento citadas em [`PROMPT_ENGINEERING_NOTES.md`](PROMPT_ENGINEERING_NOTES.md), e cada nova execução local aparece como arquivo novo no Git. Só o log fica fora:
 
 - `var/runs/AAAA-MM-DD/<ts>_<run_id>.json` — execução completa (`prompt_messages`, `output`, `llm_calls`, `cache_key`, `cache_hit`, `evaluation`)
 - `var/cache/<sha256>.json` — ponteiro da chave de cache para a execução de origem
 - `var/comparisons/<id>.json` — comparação salva com notas, justificativas e vencedor
-- `fellowsupport.log` — eventos em JSON Lines (`generation`, `generation_batch`, `evaluation`, `comparison`)
+- `fellowsupport.log` (ignorado no Git) — eventos em JSON Lines (`generation`, `generation_batch`, `evaluation`, `comparison`)
 
 Exemplo real resumido (veja todos os exemplos em [`samples/`](samples/README.md)):
 

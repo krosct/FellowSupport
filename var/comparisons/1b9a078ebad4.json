@@ -1,0 +1,412 @@
+{
+  "schema_version": 1,
+  "comparison_id": "1b9a078ebad4",
+  "created_at": "2026-11-23T22:24:38-03:00",
+  "scenario": {
+    "customer_id": "marta",
+    "customer_profile": {
+      "id": "marta",
+      "name": "Dona Marta",
+      "tech_level": "leigo",
+      "comm_style": "didático",
+      "channel": "telefone"
+    },
+    "ticket": {
+      "id": "t-2fa",
+      "title": "Código de verificação (2FA) não chega no celular",
+      "text": "Desde ontem à tarde não consigo entrar no NuvemPonto para registrar o ponto da equipe. Depois que digito a senha, o sistema pede um código de 6 dígitos por SMS, mas o SMS não chega. Já pedi o código umas 5 vezes (a última foi hoje às 8h10) e nada. Troquei de chip na semana passada, mas o número continua o mesmo. Meu celular recebe SMS de outras coisas normalmente: o banco mandou um agora há pouco. Não sei se tenho aplicativo autenticador configurado, nunca mexi nisso. Preciso fechar o ponto da equipe até as 10h."
+    },
+    "content_type": "diagnosis",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4.1-flash-1017",
+    "model_used": "deepseek/deepseek-v4.1-flash-1017",
+    "params": {
+      "temperature": 0.1,
+      "max_tokens": 12000,
+      "structured_mode": "json_schema",
+      "reasoning": "high"
+    }
+  },
+  "versions": [
+    {
+      "prompt_version": "v1",
+      "run_id": "e6f966386aa7",
+      "run_path": "var/runs/2026-11-23/20261123T212202_e6f966386aa7.json",
+      "prompt_sha256": "6de7ca6c791fc159f568cc4f5c144e5a6f992f30d8439056ea2ee062e8e4ae8b",
+      "cache_hit": false,
+      "output": {
+        "hypotheses": [
+          {
+            "id": "H1",
+            "description": "A mensagem com o código não está sendo entregue pela operadora ou pelo serviço de envio, possivelmente por causa da troca de chip da semana passada, que pode ter mudado a rota de entrega para esse número.",
+            "probability_pct": 50,
+            "evidence_for": [
+              "O celular recebe mensagens de outras empresas normalmente, o que indica que o aparelho e a linha funcionam.",
+              "A troca de chip aconteceu na semana passada e o problema começou ontem à tarde.",
+              "Foram cinco pedidos de código e nenhuma mensagem chegou."
+            ],
+            "evidence_against": [
+              "A cliente afirma que o número continua o mesmo após a troca de chip.",
+              "O ticket não informa se outras pessoas da mesma empresa também deixaram de receber o código."
+            ]
+          },
+          {
+            "id": "H2",
+            "description": "O número cadastrado na conta não é o número atual da cliente, então o código está sendo enviado para outro celular.",
+            "probability_pct": 30,
+            "evidence_for": [
+              "A troca de chip é recente e pode ter vindo junto com alguma mudança de cadastro.",
+              "Nenhuma das cinco solicitações gerou mensagem recebida, o que aconteceria se o envio estivesse indo para a linha correta."
+            ],
+            "evidence_against": [
+              "A cliente afirma que o número continua o mesmo.",
+              "O ticket não traz nenhum indício de alteração de cadastro ou de erro de digitação do número."
+            ]
+          },
+          {
+            "id": "H3",
+            "description": "O envio de códigos está temporariamente bloqueado por excesso de solicitações ou por uma instabilidade momentânea do serviço de envio.",
+            "probability_pct": 20,
+            "evidence_for": [
+              "Foram cinco pedidos de código em menos de um dia, o que pode acionar um limite de envios.",
+              "O problema começou de forma súbita, sem mudança relatada na conta."
+            ],
+            "evidence_against": [
+              "A primeira tentativa, antes de qualquer repetição, já não recebeu o código."
+            ]
+          }
+        ],
+        "available_evidence": [
+          "A cliente não consegue entrar no NuvemPonto desde ontem à tarde.",
+          "Depois da senha, o sistema pede um código de 6 dígitos por mensagem de texto.",
+          "O código não chega ao celular dela.",
+          "Ela pediu o código cerca de cinco vezes, a última hoje às 8h10.",
+          "Ela trocou de chip na semana passada e o número continua o mesmo.",
+          "O celular recebe mensagens de outras empresas normalmente, inclusive do banco hoje.",
+          "Ela não sabe se tem aplicativo autenticador configurado e diz nunca ter mexido nisso.",
+          "Ela precisa fechar o ponto da equipe até as 10h."
+        ],
+        "missing_information": [
+          {
+            "item": "Qual número de celular está cadastrado na conta dela.",
+            "why_it_matters": "Se o número cadastrado for diferente do atual, o código está indo para outro aparelho e o problema é de cadastro, não de envio."
+          },
+          {
+            "item": "Se outras pessoas da mesma empresa conseguem receber o código de acesso.",
+            "why_it_matters": "Se ninguém recebe, o problema é do envio de códigos em geral; se só ela não recebe, o problema está no número ou na conta dela."
+          },
+          {
+            "item": "Se a conta tem outro método de confirmação disponível, como aplicativo autenticador.",
+            "why_it_matters": "Existindo outro método, é possível liberar o acesso sem depender da mensagem de texto."
+          }
+        ],
+        "probable_conclusion": {
+          "summary": "O celular recebe mensagens normalmente, então a falha mais provável está na entrega do código para o número dela, possivelmente ligada à troca de chip recente. É preciso confirmar o número cadastrado e testar o envio pelo time técnico.",
+          "hypothesis_id": "H1",
+          "confidence": "média"
+        },
+        "customer_summary": "Dona Marta, o seu celular está recebendo mensagens normalmente, então o problema não parece ser no aparelho. O mais provável é que a mensagem com o código não esteja chegando pela operadora, talvez por causa da troca de chip da semana passada. Vou confirmar com a equipe técnica qual número está cadastrado na sua conta e se o envio está funcionando. Evite pedir o código muitas vezes seguidas, porque isso pode atrasar ainda mais. Como a senhora precisa fechar o ponto até as dez horas, já estou encaminhando o caso como prioridade."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 3,
+          "justification": "Organiza bem os campos, mas fica abaixo de v2, v3 e v4 por incluir suposições e contradizer a troca de chip em H3."
+        },
+        "customer_fit": {
+          "score": 4,
+          "justification": "Fala de forma simples e sem siglas no telefone, acima da v2 por acolher melhor a cliente, mas abaixo da v3 por não explicar o porquê da falha."
+        },
+        "actionability": {
+          "score": 3,
+          "justification": "Orienta evitar novos pedidos no resumo, mas empata com v2 e v4 e perde da v3 por não formalizar o escalonamento na conclusão."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:24:38-03:00"
+      },
+      "total": 10
+    },
+    {
+      "prompt_version": "v2",
+      "run_id": "8070b06b2460",
+      "run_path": "var/runs/2026-11-23/20261123T213443_8070b06b2460.json",
+      "prompt_sha256": "c928f045f218304a92b2ff33ab3e0d4beb2c6f486148fff4957c9b394fc046ea",
+      "cache_hit": false,
+      "output": {
+        "hypotheses": [
+          {
+            "id": "H1",
+            "description": "O envio do SMS com o código está falhando para esse número específico, por bloqueio, filtro ou problema de rota junto ao provedor de mensagens ou à operadora.",
+            "probability_pct": 55,
+            "evidence_for": [
+              "O SMS não chega",
+              "Já pedi o código umas 5 vezes, a última hoje às 8h10",
+              "Troquei de chip na semana passada, mas o número continua o mesmo"
+            ],
+            "evidence_against": [
+              "O celular recebe SMS de outras coisas normalmente, o banco mandou um agora há pouco"
+            ]
+          },
+          {
+            "id": "H2",
+            "description": "A conta está configurada para usar aplicativo autenticador como segundo fator, e o código não é entregue por SMS, apesar de a tela pedir um código.",
+            "probability_pct": 25,
+            "evidence_for": [
+              "Não sei se tenho aplicativo autenticador configurado, nunca mexi nisso"
+            ],
+            "evidence_against": [
+              "Depois de digitar a senha, o sistema pede um código de 6 dígitos por SMS"
+            ]
+          },
+          {
+            "id": "H3",
+            "description": "Os pedidos repetidos de código geraram limite de reenvio ou descarte das solicitações, impedindo que uma nova mensagem seja enviada.",
+            "probability_pct": 20,
+            "evidence_for": [
+              "Já pedi o código umas 5 vezes, a última hoje às 8h10"
+            ],
+            "evidence_against": [
+              "Desde ontem à tarde não consigo entrar no NuvemPonto"
+            ]
+          }
+        ],
+        "available_evidence": [
+          "Desde ontem à tarde não consigo entrar no NuvemPonto",
+          "Depois de digitar a senha, o sistema pede um código de 6 dígitos por SMS",
+          "O SMS não chega",
+          "Já pedi o código umas 5 vezes, a última hoje às 8h10",
+          "Troquei de chip na semana passada, mas o número continua o mesmo",
+          "O celular recebe SMS de outras coisas normalmente, o banco mandou um agora há pouco",
+          "Não sei se tenho aplicativo autenticador configurado, nunca mexi nisso",
+          "Preciso fechar o ponto da equipe até as 10h"
+        ],
+        "missing_information": [
+          {
+            "item": "Confirmação de qual número de telefone está cadastrado na conta, com DDD completo.",
+            "why_it_matters": "A troca de chip pode ter mudado a linha associada ao número, e o código pode estar sendo enviado para outro número."
+          },
+          {
+            "item": "Se existe aplicativo autenticador configurado na conta e qual método de verificação está ativo.",
+            "why_it_matters": "Define se o código deveria chegar por SMS ou ser gerado no aplicativo, separando a hipótese de falha de envio da hipótese de método trocado."
+          },
+          {
+            "item": "Se outras pessoas da mesma equipe conseguem receber o código normalmente.",
+            "why_it_matters": "Ajuda a distinguir se o problema é só desse número ou se afeta o envio de mensagens da plataforma como um todo."
+          }
+        ],
+        "probable_conclusion": {
+          "summary": "O relato indica que o celular recebe mensagens de outros remetentes, mas não recebe o código do NuvemPonto, mesmo após cinco pedidos e após a troca de chip. A causa mais provável é falha de entrega do SMS para esse número, possivelmente ligada ao cadastro do número ou à rota de envio. Não há confirmação do número cadastrado nem do método de verificação ativo, então é necessário escalar para o time interno verificar o envio e o cadastro, com prioridade pelo prazo das 10h.",
+          "hypothesis_id": "H1",
+          "confidence": "média"
+        },
+        "customer_summary": "Dona Marta, o mais provável é que a mensagem de texto com o código não esteja chegando ao seu celular por um bloqueio ou falha no envio para o seu número. O aparelho parece estar bem, porque a senhora recebe outras mensagens normalmente. Também pode ser que a conta esteja usando outro tipo de código, aquele gerado por aplicativo, e não a mensagem de texto. Vou verificar com o time interno qual número está cadastrado e qual forma de código está ativa. Como a senhora precisa fechar o ponto até as dez horas, já vou pedir prioridade nessa verificação."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 4,
+          "justification": "Supera a v1 ao citar só fatos literais nas evidências, mas perde da v3 porque a conclusão cita erro de cadastro ausente das hipóteses."
+        },
+        "customer_fit": {
+          "score": 3,
+          "justification": "Usa linguagem simples no resumo, mas fica abaixo de v1, v3 e v4 por ter tom menos didático e não exemplificar o aplicativo de códigos."
+        },
+        "actionability": {
+          "score": 3,
+          "justification": "Formaliza o escalonamento na conclusão, mas empata com v1 e v4 e perde da v3 por deixar a cliente sem ação prática imediata no resumo."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:24:38-03:00"
+      },
+      "total": 10
+    },
+    {
+      "prompt_version": "v3",
+      "run_id": "90947f5a86c4",
+      "run_path": "var/runs/2026-11-23/20261123T221407_90947f5a86c4.json",
+      "prompt_sha256": "1afbfdb3d81d270d975827ac60aee4a4dc134c7f64b4d5ffa7e54d9ffb6ce846",
+      "cache_hit": false,
+      "output": {
+        "hypotheses": [
+          {
+            "id": "H1",
+            "description": "O código está sendo gerado, mas a mensagem de texto não chega ao celular por bloqueio ou filtro da operadora para mensagens automáticas de empresas, possivelmente relacionado à troca de chip da semana passada.",
+            "probability_pct": 55,
+            "evidence_for": [
+              "O cliente relata que o SMS com o código não chega, mesmo depois de pedir o código umas 5 vezes",
+              "O cliente trocou de chip na semana passada",
+              "A última solicitação do código foi hoje às 8h10"
+            ],
+            "evidence_against": [
+              "O cliente afirma que o celular recebe SMS de outras coisas normalmente e que o banco mandou uma mensagem agora há pouco"
+            ]
+          },
+          {
+            "id": "H2",
+            "description": "A conta pode ter um segundo fator diferente do SMS configurado, como aplicativo autenticador, e o cliente não reconhece a tela ou o método que o sistema está pedindo.",
+            "probability_pct": 25,
+            "evidence_for": [
+              "O cliente diz que não sabe se tem aplicativo autenticador configurado e que nunca mexeu nisso"
+            ],
+            "evidence_against": [
+              "O cliente afirma que o sistema pede um código de 6 dígitos por SMS"
+            ]
+          },
+          {
+            "id": "H3",
+            "description": "O envio de novos códigos pode estar temporariamente travado por causa das várias solicitações seguidas feitas pelo cliente.",
+            "probability_pct": 20,
+            "evidence_for": [
+              "O cliente pediu o código umas 5 vezes, a última hoje às 8h10"
+            ],
+            "evidence_against": []
+          }
+        ],
+        "available_evidence": [
+          "O cliente não consegue entrar no NuvemPonto desde ontem à tarde",
+          "Depois de digitar a senha, o sistema pede um código de 6 dígitos por SMS",
+          "O SMS com o código não chega",
+          "O cliente pediu o código umas 5 vezes, a última hoje às 8h10",
+          "O cliente trocou de chip na semana passada e o número continua o mesmo",
+          "O celular recebe SMS de outras coisas normalmente, inclusive do banco agora há pouco",
+          "O cliente não sabe se tem aplicativo autenticador configurado e nunca mexeu nisso",
+          "O cliente precisa fechar o ponto da equipe até as 10h"
+        ],
+        "missing_information": [
+          {
+            "item": "Qual número de telefone está cadastrado na conta do NuvemPonto e se é o mesmo do chip atual",
+            "why_it_matters": "Se o cadastro estiver com um número antigo, o código é enviado para outro celular e nunca chega, o que muda completamente o caminho da solução."
+          },
+          {
+            "item": "O que exatamente aparece na tela depois de digitar a senha, incluindo se há opção de enviar por SMS ou menção a aplicativo autenticador",
+            "why_it_matters": "Ajuda a confirmar se o segundo fator realmente é por SMS ou se a conta está pedindo o código de um aplicativo, o que separa a hipótese H2 das demais."
+          },
+          {
+            "item": "Se outras pessoas da equipe conseguem entrar normalmente e se o problema acontece só com este celular",
+            "why_it_matters": "Se só este celular falha, o problema tende a ser de entrega de mensagem na operadora; se todos falham, pode ser algo na conta ou na plataforma."
+          }
+        ],
+        "probable_conclusion": {
+          "summary": "O caso indica falha na entrega da mensagem de texto com o código, provavelmente por bloqueio ou filtro da operadora para mensagens automáticas de empresas, possivelmente ligado à troca de chip da semana passada. O recebimento de mensagens do banco não descarta essa causa, porque vem de outro remetente. Como ainda faltam dados sobre o número cadastrado e sobre a tela exibida, e como o caso pode envolver falha de envio da plataforma, é preciso escalar para verificação interna.",
+          "hypothesis_id": "H1",
+          "confidence": "média"
+        },
+        "customer_summary": "Dona Marta, obrigado pela paciência. Pelo que a senhora contou, o mais provável é que o código esteja sendo enviado, mas a mensagem de texto não esteja chegando no seu celular. A troca de chip na semana passada pode ter feito a operadora bloquear mensagens automáticas de empresas. Isso pode acontecer mesmo quando as mensagens do banco chegam normalmente, porque elas vêm de outro remetente. Vou encaminhar o seu caso para a nossa equipe interna verificar qual número está cadastrado na sua conta e se o envio está saindo. Enquanto isso, evite pedir o código várias vezes seguidas. Se a senhora tiver um aplicativo de códigos no celular, me avise. Sobre o prazo das dez horas, a nossa equipe vai te ajudar a liberar o acesso o quanto antes."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 5,
+          "justification": "Supera v1, v2 e v4 com hipóteses bem separadas, evidências estritamente literais e conclusão que explica por que o SMS do banco não descarta a H1."
+        },
+        "customer_fit": {
+          "score": 5,
+          "justification": "Supera v1, v2 e v4 ao combinar tom acolhedor para telefone, vocabulário leigo e explicação didática sobre remetentes diferentes do banco."
+        },
+        "actionability": {
+          "score": 4,
+          "justification": "Supera v1, v2 e v4 ao unir escalonamento interno claro na conclusão e orientações imediatas viáveis à cliente no resumo."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:24:38-03:00"
+      },
+      "total": 14
+    },
+    {
+      "prompt_version": "v4",
+      "run_id": "f461b2a23938",
+      "run_path": "var/runs/2026-11-23/20261123T221327_f461b2a23938.json",
+      "prompt_sha256": "f8a2a5875cb1c23ff54f2b0e2c2a01a565b8a2e62c602c761e0293a06ce492df",
+      "cache_hit": false,
+      "output": {
+        "hypotheses": [
+          {
+            "id": "H1",
+            "description": "As mensagens de texto com o código enviadas pelo NuvemPonto não estão sendo entregues no celular da cliente, mesmo com o celular recebendo mensagens de outros remetentes (por exemplo, bloqueio ou filtro da operadora para o tipo de remetente usado pelo sistema).",
+            "probability_pct": 55,
+            "evidence_for": [
+              "O sistema pede um código de 6 dígitos por SMS e o SMS não chega",
+              "Já pediu o código umas 5 vezes, a última hoje às 8h10",
+              "O celular recebe SMS de outras coisas normalmente, o banco mandou um agora há pouco"
+            ],
+            "evidence_against": [
+              "O número continua o mesmo"
+            ]
+          },
+          {
+            "id": "H2",
+            "description": "O número de telefone registrado na conta do NuvemPonto não é o número do chip atual, e o código está sendo enviado para outro número.",
+            "probability_pct": 30,
+            "evidence_for": [
+              "Trocou de chip na semana passada",
+              "O SMS com o código não chega"
+            ],
+            "evidence_against": [
+              "A cliente afirma que o número continua o mesmo"
+            ]
+          },
+          {
+            "id": "H3",
+            "description": "O envio de novos códigos está temporariamente limitado ou atrasado por causa dos vários pedidos seguidos feitos pela cliente.",
+            "probability_pct": 15,
+            "evidence_for": [
+              "Já pediu o código umas 5 vezes, a última às 8h10"
+            ],
+            "evidence_against": []
+          }
+        ],
+        "available_evidence": [
+          "Desde ontem à tarde não consegue entrar no NuvemPonto para registrar o ponto da equipe",
+          "Depois de digitar a senha, o sistema pede um código de 6 dígitos por SMS",
+          "O SMS com o código não chega",
+          "Pediu o código umas 5 vezes, a última hoje às 8h10",
+          "Trocou de chip na semana passada e o número continua o mesmo",
+          "O celular recebe SMS de outras coisas normalmente, incluindo um do banco há pouco",
+          "Não sabe se tem aplicativo autenticador configurado e nunca mexeu nisso",
+          "Precisa fechar o ponto da equipe até as 10h"
+        ],
+        "missing_information": [
+          {
+            "item": "Qual número de telefone está cadastrado na conta do NuvemPonto",
+            "why_it_matters": "Se o número cadastrado for diferente do chip atual, o código está indo para outro lugar, o que confirma a segunda hipótese em vez da primeira."
+          },
+          {
+            "item": "Se outras pessoas da equipe conseguem entrar normalmente ou se o problema acontece com todos",
+            "why_it_matters": "Ajuda a separar um problema no celular ou na conta da cliente de uma falha geral no envio de mensagens pela plataforma."
+          },
+          {
+            "item": "Se existe outro método de confirmação disponível na conta, como receber o código por e-mail ou usar um aplicativo que gera códigos",
+            "why_it_matters": "Se houver outro caminho, é possível orientar a cliente a concluir o acesso sem depender da mensagem de texto."
+          }
+        ],
+        "probable_conclusion": {
+          "summary": "Os fatos apontam com mais força para uma falha na entrega das mensagens de texto enviadas pelo NuvemPonto, já que o celular recebe mensagens de outros remetentes e o número foi mantido. Ainda não é possível descartar que o número cadastrado na conta esteja diferente do atual. Como a verificação depende de consulta interna aos registros de envio, o caso deve ser escalado ao time responsável.",
+          "hypothesis_id": "H1",
+          "confidence": "média"
+        },
+        "customer_summary": "Dona Marta, analisei o seu caso e vou explicar com calma o que provavelmente está acontecendo. O seu celular está recebendo mensagens de texto normalmente, inclusive a do banco. Isso mostra que o aparelho está funcionando. O que parece é que as mensagens com o código enviadas pelo NuvemPonto não estão chegando até você. Isso pode acontecer quando a operadora segura ou filtra esse tipo de mensagem. Também existe uma segunda possibilidade, menor. Pode ser que o número guardado no seu cadastro esteja diferente do número do seu chip novo. Por isso preciso confirmar com você uma coisa. Qual é o número de telefone que aparece no seu cadastro do NuvemPonto? Outra pergunta importante. Os seus colegas de equipe conseguem entrar no sistema hoje, ou só você está com essa dificuldade? Com essas duas respostas eu consigo separar melhor o que está acontecendo. Vou pedir também uma verificação interna dos registros de envio das mensagens, porque só essa consulta confirma se o código está saindo do sistema. Como você precisa fechar o ponto da equipe até as dez horas da manhã, deixe o celular por perto e fique tranquila, que já estou tratando esse caso com prioridade. Obrigada pelas informações."
+      },
+      "rendered": null,
+      "evaluation": {
+        "clarity": {
+          "score": 4,
+          "justification": "Equivale à v2 na estrutura limpa, mas fica abaixo da v3 ao classificar evidências de forma confusa na H1 (recebimento normal listado a favor da falha)."
+        },
+        "customer_fit": {
+          "score": 4,
+          "justification": "Usa frases faladas curtas e sem siglas como a v1, superando a v2 na fluidez oral, mas fica abaixo da v3 por não explicar a diferença do SMS do banco."
+        },
+        "actionability": {
+          "score": 3,
+          "justification": "Formaliza o escalonamento na conclusão, mas empata com v1 e v2 e perde da v3 por pedir à cliente o número do cadastro inacessível sem login e citar opção por e-mail ausente do ticket."
+        },
+        "evaluator": "candidato",
+        "evaluated_at": "2026-11-23T22:24:38-03:00"
+      },
+      "total": 11
+    }
+  ],
+  "winner": "v3",
+  "conclusion": "A v3 vence por unir evidências estritamente literais, explicação didática para telefone e orientações imediatas viáveis à cliente sem pedir dados inacessíveis como a v4.",
+  "conclusion_source": "candidato"
+}
