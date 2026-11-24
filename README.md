@@ -1,131 +1,126 @@
-# FellowSupport
+# 🤖 FellowSupport
 
-Assistente de suporte ao cliente com respostas técnicas personalizadas por perfil (nível técnico, estilo de
-comunicação e canal), feito para o desafio técnico "Estágio em IA e Engenharia de Prompt".
+Assistente de suporte técnico ao cliente (produto fictício **NuvemPonto**) que gera respostas personalizadas por **perfil de cliente** e compara versões de prompt com uma rubrica fixa. Desenvolvido para o desafio **Estágio em IA e Engenharia de Prompt**.
 
-> README mínimo (até a Etapa 3: cache, histórico e robustez). O README completo, com arquitetura, exemplos de saída e limitações, chega
-> na Etapa 6. O plano está em [`docs/planejamento/`](docs/planejamento/) e as decisões em [`docs/adr/`](docs/adr/).
+## ✨ O que o sistema faz
 
-Repositório: https://github.com/krosct/FellowSupport.git
+Recebe um **perfil** ([`catalog/profiles.json`](catalog/profiles.json): nível técnico, estilo de comunicação e canal) e um **ticket** ([`catalog/tickets.json`](catalog/tickets.json)) para gerar 4 conteúdos com prompts versionados (`v1`–`v4`):
 
-## Requisitos
+1. 🔍 **Diagnóstico** (`diagnosis`) — hipóteses ordenadas, evidências, dados faltantes e conclusão.
+2. 🛠️ **Passo a passo** (`resolution_steps`) — instruções adaptadas ao perfil e ao canal.
+3. ❓ **Perguntas de esclarecimento** (`clarifying_questions`) — priorizadas para destravar o atendimento.
+4. 🗺️ **Resumo visual do fluxo** (`flow_summary`) — árvore de decisão em JSON renderizada em fluxograma ASCII determinístico.
 
-- Python 3.12 (o `uv` instala sozinho) e [`uv`](https://docs.astral.sh/uv/)
-- Node 20 ou superior e npm (somente para o front-end)
+Cada execução é salva em JSON com timestamp e hash do prompt, usa **cache SHA-256** para evitar chamadas equivalentes repetidas e permite **comparar versões** no mesmo cenário pela rubrica fixa (**Clareza**, **Adequação ao nível do cliente** e **Acionabilidade**, notas 1–5 + justificativa).
 
-## Instalação
+## 📋 Pré-requisitos
+
+- **Python 3.12** e [**uv**](https://docs.astral.sh/uv/) (ou `python3.12 -m venv`)
+- **Node.js 20.19+** e `npm` *(opcional — necessário apenas para gerar a interface web)*
+- **Chave OpenRouter** *(opcional — por padrão roda offline com `LLM_PROVIDER=fake`, sem custo)*
+
+## 🚀 Instalação e uso rápido
 
 ```bash
+git clone https://github.com/krosct/FellowSupport.git && cd FellowSupport
+cp .env.example .env                 # padrão LLM_PROVIDER=fake (sem chave, sem custo)
 uv venv .venv --python 3.12
-uv pip install -r requirements-dev.txt
-cp .env.example .env        # o padrão LLM_PROVIDER=fake roda sem chave
+uv pip install --python .venv/bin/python -r requirements-dev.txt
 ```
 
-Sem `uv`: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`.
-
-O `.env` guarda segredos e nunca é versionado. Chamadas reais ao LLM só acontecem com `LLM_PROVIDER=openrouter`
-e `OPENROUTER_API_KEY` preenchida; com `LLM_PROVIDER=fake` (padrão) as respostas são simuladas e determinísticas.
-Os modelos gratuitos "pensam" antes de responder: mantenha `LLM_MAX_TOKENS` em 8000 ou mais (ADR 0026). O modelo padrão tem raciocínio obrigatório e recusa `LLM_REASONING=off`; ver ADR 0027.
-
-## Rodar a API (e o site)
+### 💻 CLI (adaptador direto do núcleo, sem precisar subir servidor)
 
 ```bash
-cd frontend && npm install && npm run build && cd ..   # gera frontend/dist
-.venv/bin/uvicorn app.adapters.api.main:app --port 8000
+# 1. Gerar um conteúdo (--type all gera os 4 em paralelo)
+.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type flow_summary
+
+# 2. Repetir o comando: acerta o cache (0 chamadas ao LLM, cache_hit: true)
+.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type flow_summary
+
+# 3. Gerar versões diferentes no mesmo cenário e comparar pela rubrica
+.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type diagnosis --version v1
+.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type diagnosis --version v4
+.venv/bin/python -m app.adapters.cli.main compare <id_v1> <id_v4>
 ```
 
-Abra http://127.0.0.1:8000/. A API serve o build do front em `/`. Escolha o perfil, o ticket e o conteúdo (diagnóstico, passo a passo,
-perguntas de esclarecimento, resumo visual do fluxo ou **Todos**) e clique em **Gerar**: o site mostra o conteúdo e o caminho
-do JSON salvo. A opção **Usar cache** (ligada por padrão) reaproveita execuções equivalentes: o resultado ganha o selo **Cache** com a
-latência e o link da execução de origem. A aba **Histórico** (`#/historico`) lista as execuções salvas com filtros por cliente, ticket,
-conteúdo, versão e status; clicar numa execução abre o detalhe (`#/historico/<id>`), que é um link copiável. Em "Todos" os quatro são gerados em paralelo, em abas, cada um com o seu JSON; a falha de um não afeta os outros. Rotas: `GET /healthz`, `GET /api/meta`, `GET /api/profiles`,
-`GET /api/tickets`, `GET /api/prompt-versions` e `POST /api/generate` (`content_type` com os quatro tipos ou `all`; `use_cache`, padrão `true`;
-documentação interativa em `/api/docs`).
+Outros comandos: `meta`, `profile|ticket list|create|update|delete`, `prompt list|create|delete`, `history generation|comparison`, `show <id>` (detalhes com `--help`). Use `--no-cache` para ignorar a leitura do cache e `--json` para saída estruturada.
 
-## Rodar o front em modo de desenvolvimento
+### 🌐 Interface Web e API (FastAPI + React)
 
 ```bash
-.venv/bin/uvicorn app.adapters.api.main:app --port 8000   # em um terminal
-cd frontend && npm run dev                                 # em outro: http://localhost:5173
+(cd frontend && npm install && npm run build)   # gera frontend/dist
+.venv/bin/uvicorn app.adapters.api.main:app --port 9713
 ```
 
-O Vite encaminha `/api` e `/healthz` para a porta 8000.
+Acesse **http://127.0.0.1:9713** (abas *Cliente*, *Ticket*, *Prompt*, *Gerar*, *Comparar* e *Histórico*) ou **http://127.0.0.1:9713/api/docs** (Swagger). Principais rotas: `GET /api/meta`, `CRUD /api/profiles|tickets|prompts`, `POST /api/generate`, `GET /api/runs`, `POST/GET /api/comparisons` e `GET /healthz`.
 
-## CLI
+### 🔑 Ativar modelo real (OpenRouter)
 
-```bash
-.venv/bin/python -m app.adapters.cli.main profiles            # perfis de cliente
-.venv/bin/python -m app.adapters.cli.main tickets             # tickets de exemplo
-.venv/bin/python -m app.adapters.cli.main tickets --id t-2fa  # ticket completo
-.venv/bin/python -m app.adapters.cli.main versions            # versões de prompt (com hash)
-.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa      # diagnóstico (padrão)
-.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type resolution_steps
-.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type clarifying_questions
-.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type flow_summary  # fluxograma ASCII
-.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --type all          # os quatro, em paralelo
-.venv/bin/python -m app.adapters.cli.main generate --customer bianca --text "A API devolve 500."
-.venv/bin/python -m app.adapters.cli.main generate --customer marta --ticket t-2fa --no-cache      # ignora o cache
-.venv/bin/python -m app.adapters.cli.main history                      # execuções salvas, da mais recente à mais antiga
-.venv/bin/python -m app.adapters.cli.main history --customer marta --type diagnosis --status ok --limit 10
-.venv/bin/python -m app.adapters.cli.main history --cache-key a5d5dc913ffb   # execuções equivalentes (mesma chave de cache)
-.venv/bin/python -m app.adapters.cli.main show 896ff38d6182            # reexibe uma execução salva pelo id
+Edite o `.env` (nunca versionado; veja todas as variáveis em [`.env.example`](.env.example)):
+
+```ini
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-...   # https://openrouter.ai/keys (apenas modelos :free)
+LLM_MAX_TOKENS=12000           # folga para modelos que raciocinam antes do JSON
 ```
 
-### Histórico
+> 💡 Para rodar um comando sem gastar cota mesmo com `.env` em `openrouter`, prefixe com `LLM_PROVIDER=fake`.
 
-`history` lista em tabela (id, data e hora no fuso `APP_TIMEZONE`, cliente, ticket, tipo, versão, status, `hit` quando veio do
-cache, latência e o começo da chave de cache); os filtros são `--customer`, `--ticket`, `--type`, `--version`, `--status`
-(`ok` ou `error`), `--cache-key` (inteira ou só o começo) e `--limit` (1 a 500, padrão 50). `show <id>` imprime a execução
-com o mesmo renderizador do `generate`. Na API: `GET /api/runs` (mesmos filtros como parâmetros: `customer_id`, `ticket_id`,
-`content_type`, `prompt_version`, `status`, `cache_key`, `limit`) e `GET /api/runs/{id}`; id inexistente responde 404.
-Decisões nos ADRs 0028 e 0029.
+## 📄 Persistência e exemplo de JSON
 
-Todos aceitam `--json`. `--type` aceita `diagnosis`, `resolution_steps`, `clarifying_questions`, `flow_summary` e `all`. `generate`
-imprime o conteúdo em texto legível (o fluxograma em ASCII, desenhado por código a partir da árvore de decisão) e
-`JSON salvo em: var/runs/AAAA-MM-DD/<carimbo>_<id>.json`; com `all`, um bloco e um JSON por tipo, e a falha de um tipo não
-impede a saída dos outros. Códigos de saída: 0 sucesso, 1 uso ou validação, 2 não encontrado, 3 provedor de LLM.
+Os arquivos gerados localmente ficam fora do Git:
 
-### Cache
+- `var/runs/AAAA-MM-DD/<ts>_<run_id>.json` — execução completa (`prompt_messages`, `output`, `llm_calls`, `cache_key`, `cache_hit`, `evaluation`)
+- `var/cache/<sha256>.json` — ponteiro da chave de cache para a execução de origem
+- `var/comparisons/<id>.json` — comparação salva com notas, justificativas e vencedor
+- `fellowsupport.log` — eventos em JSON Lines (`generation`, `generation_batch`, `evaluation`, `comparison`)
 
-Gerar duas vezes a mesma entrada (mesmo perfil, ticket, tipo, versão e hash do prompt, provedor, modelo e parâmetros) não
-chama o LLM na segunda vez: a CLI mostra `cache hit (origem <id>, sem chamar o LLM)` e o JSON salvo traz `cache_hit: true`,
-`source_run_id` e latência de ~0 ms. O cache vive em `var/cache/<sha256>.json` e aponta para a execução de origem; execuções
-com erro nunca entram nele. Para gerar de novo: `--no-cache` na CLI, `"use_cache": false` na API ou desmarcar **Usar cache**
-no site; `CACHE_ENABLED=false` no `.env` desliga o cache de vez. Detalhes no ADR 0028.
+Exemplo real resumido (veja todos os exemplos em [`samples/`](samples/README.md)):
 
-Exemplo do fluxograma (provedor `fake`):
+```json
+{
+  "run_id": "aba69b5c89e1", "status": "ok", "customer_id": "bianca",
+  "ticket": { "id": "t-webhook", "title": "API e webhook retornando 401 e 429" },
+  "content_type": "clarifying_questions", "prompt_version": "v4",
+  "provider": "openrouter", "model": "deepseek/deepseek-v4.1-flash-1017",
+  "cache_hit": false,
+  "output": { "questions": [{ "priority": 1, "question": "..." }], "can_proceed_without_answers": false },
+  "evaluation": {
+    "clarity": { "score": 5, "justification": "..." },
+    "customer_fit": { "score": 5, "justification": "..." },
+    "actionability": { "score": 4, "justification": "..." }
+  }
+}
+```
+
+## 🏗️ Arquitetura resumida
+
+Arquitetura **Hexagonal (Ports and Adapters)** verificada por teste (`tests/test_architecture.py`):
 
 ```text
-(INÍCIO) Cliente relata o problema
-│
-▼
-<1> Os dados do cadastro estão corretos?
-├─ Sim ─▶ <2> A ação funciona ao repetir?
-│         ├─ Sim ─▶ [3] FIM: Problema resolvido
-│         └─ Não ─▶ [4] Coletar a mensagem de erro e o horário
-│                   │
-│                   ▼
-│                   [5] FIM: Escalar para o nível 3 com os detalhes
-└─ Não ─▶ [6] Corrigir os dados do cadastro
-          │
-          ▼
-          (segue em <2>)
+frontend/ (React + Vite + Pico) ──▶ adapters/api (FastAPI) ──┐
+CLI (argparse) ───────────────────▶ adapters/cli            ├──▶ services/ ──▶ domain/ ◀── ports/
+                                                             └──▶ adapters/{llm,storage}/
 ```
 
-Atenção: o `.env` com `LLM_PROVIDER=openrouter` gasta cota real a cada comando `generate`. Para ensaiar sem custo, use
-`LLM_PROVIDER=fake .venv/bin/python -m app.adapters.cli.main generate ...`.
+- `app/config.py` e `app/container.py` — configuração única (`Settings`) e injeção das dependências
+- `app/domain/` — schemas Pydantic, rubrica, motor de prompts (`string.Template`), chave de cache e fluxograma ASCII (sem I/O)
+- `app/services/` — geradores (com 1 reparo automático em JSON inválido), histórico, avaliação, catálogo e comparação justa
+- `catalog/` — 5 perfis (`marta`, `rafael`, `bianca`, `jorge`, `amanda`) e 2 tickets (`t-2fa`, `t-webhook`)
+- `prompts/v1..v4/` — versões imutáveis validadas por `content_sha256` em `meta.json` (a mais nova é a padrão)
 
-## Teste real com o provedor (manual)
+## 🧠 Engenharia de prompt e limitações
+
+- **Estratégias**: persona e limites (`system.md`), contexto delimitado contra injeção (`<ticket>...</ticket>`), adaptação por perfil (`adaptation.json`), decomposição do diagnóstico, saída estruturada com schema estrito + 1 reparo (`repair.md`) e fluxograma por código.
+- **Notas do experimento e limitações**: evolução `v1`→`v4`, avaliações na rubrica, trade-offs e limitações (1 execução por célula, cortes por orçamento de raciocínio, cache sem TTL) em [`PROMPT_ENGINEERING_NOTES.md`](PROMPT_ENGINEERING_NOTES.md) e decisões em [`docs/adr/`](docs/adr/README.md).
+
+## 🧪 Testes, qualidade e deploy
 
 ```bash
-.venv/bin/python scripts/smoke_llm.py --max-tokens 6000   # uma chamada real; anota em var/smoke/calls.log
+.venv/bin/pytest -q            # 694 testes offline (provedor fake, sem rede)
+.venv/bin/ruff check .         # lint e formatação
+(cd frontend && npm run build) # build da interface web
 ```
 
-Exige `LLM_PROVIDER=openrouter` e a chave no `.env`; sem elas o script informa que o teste real está bloqueado.
-
-## Testes e lint
-
-```bash
-.venv/bin/pytest -q
-.venv/bin/ruff check .
-```
+- **CI/CD**: [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) executa `ruff`, `pytest`, build do front-end, auditoria de dependências, smoke test e deploy na VPS via `krosct/devkit`.
+- **Deploy**: configurado via [`deploy.conf`](deploy.conf) (systemd + Caddy, `RATE_LIMIT_PER_MIN` por IP e proteção administrativa via `ADMIN_API_KEY`; detalhes nos ADRs [0024](docs/adr/0024-deploy.md), [0033](docs/adr/0033-limite-de-taxa-por-ip.md) e [0034](docs/adr/0034-contrato-do-deploy-conf.md)).
