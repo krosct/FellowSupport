@@ -1,5 +1,5 @@
-"""Rotas HTTP: saúde, metadados, catálogo (perfis e tickets, com CRUD), versões de prompt, geração, histórico,
-avaliação e comparação.
+"""Rotas HTTP: saúde, metadados, catálogo (perfis e tickets, com CRUD), versões de prompt, geração, histórico e
+comparação (com as notas da rubrica).
 
 Os endpoints são ``def`` (síncronos) e rodam no threadpool do FastAPI (ADR 0015). Nenhuma regra de negócio mora
 aqui: as rotas só traduzem HTTP para chamadas às portas do ``Container``.

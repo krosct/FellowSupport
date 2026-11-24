@@ -17,7 +17,6 @@ from app.domain.models import ContentType
 from app.ports.events import EVENT_COMPARISON, EVENT_EVALUATION, EVENT_GENERATION, EVENT_GENERATION_BATCH
 from app.ports.llm import LLMResult
 from app.services.comparison import save_comparison
-from app.services.evaluation import evaluate_manual
 from app.services.generators import generate, generate_all
 from tests.support import LLMRoteirizado, gerar_versoes
 
@@ -144,19 +143,6 @@ def test_modo_all_liga_as_quatro_geracoes_ao_evento_do_lote(settings: Settings) 
 # --- eventos de avaliação e comparação ----------------------------------------------------------------------
 
 
-def test_avaliacao_manual_emite_notas_justificativas_e_total(settings: Settings) -> None:
-    container = build_container(settings)
-    run_id = generate(
-        container.generation, content_type=ContentType.DIAGNOSIS, profile_id="marta", ticket_id="t-2fa"
-    ).record.run_id
-    evaluate_manual(container.evaluation, run_id, _notas(4))
-
-    [evento] = _eventos(settings, EVENT_EVALUATION)
-    assert evento["run_id"] == run_id and evento["comparison_id"] is None
-    assert evento["total"] == 4 * len(rubric.CRITERIA_KEYS)
-    assert evento["evaluation"]["clarity"]["justification"] == "Motivo de clarity."
-
-
 @pytest.fixture
 def container(settings: Settings) -> Container:
     return build_container(settings)
@@ -169,6 +155,9 @@ def test_comparacao_emite_a_avaliacao_de_cada_execucao_e_o_resultado(container: 
     avaliacoes = _eventos(settings, EVENT_EVALUATION)
     assert {a["run_id"] for a in avaliacoes} == {id1, id2}
     assert {a["comparison_id"] for a in avaliacoes} == {stored.record.comparison_id}
+    totais = {a["run_id"]: a["total"] for a in avaliacoes}
+    assert totais == {id1: 5 * len(rubric.CRITERIA_KEYS), id2: 3 * len(rubric.CRITERIA_KEYS)}
+    assert all(a["evaluation"]["clarity"]["justification"] == "Motivo de clarity." for a in avaliacoes)
     [evento] = _eventos(settings, EVENT_COMPARISON)
     assert evento["winner"] == "v1" and evento["saved_path"] == stored.saved_path
     assert [v["total"] for v in evento["versions"]] == [15, 9]

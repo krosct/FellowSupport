@@ -21,7 +21,6 @@ from app.domain.prompting.registry import PromptRegistry
 from app.ports.llm import LLMClient
 from app.ports.repositories import ComparisonRepo, EditablePromptStore, ProfileStore, RunRepo, TicketStore
 from app.services.comparison import ComparisonContext
-from app.services.evaluation import EvaluationContext
 from app.services.generators import GenerationConfig, GenerationContext
 
 
@@ -36,7 +35,6 @@ class Container:
     prompt_store: EditablePromptStore
     runs: RunRepo
     generation: GenerationContext
-    evaluation: EvaluationContext
     comparison: ComparisonContext
     comparisons: ComparisonRepo
 
@@ -78,11 +76,10 @@ def build_container(settings: Settings | None = None, *, llm: LLMClient | None =
         ),
         events=events,
     )
-    evaluation = EvaluationContext(runs=runs, timezone=settings.app_timezone, events=events)
     # Liga o repositório de comparações ao serviço de comparação.
     comparisons = JsonComparisonRepo(settings.data_dir)
     comparison = ComparisonContext(
-        runs=runs, comparisons=comparisons, evaluation=evaluation, timezone=settings.app_timezone, events=events
+        runs=runs, comparisons=comparisons, timezone=settings.app_timezone, events=events
     )
     # Entrega todas as dependências conectadas no container imutável.
     return Container(
@@ -93,7 +90,6 @@ def build_container(settings: Settings | None = None, *, llm: LLMClient | None =
         prompt_store=prompt_store,
         runs=runs,
         generation=generation,
-        evaluation=evaluation,
         comparison=comparison,
         comparisons=comparisons,
     )

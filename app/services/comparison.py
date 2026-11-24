@@ -40,7 +40,7 @@ from app.domain.models import ContentType
 from app.ports.events import EVENT_COMPARISON, EVENT_EVALUATION, NULL_EVENT_LOG, EventLog
 from app.ports.repositories import ComparisonRepo, RunRepo, StoredComparison, StoredRun
 from app.services.clock import Clock, now_iso, system_clock
-from app.services.evaluation import EvaluationContext, evaluation_event
+from app.services.evaluation import evaluation_event
 from app.services.history import DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT, Page, check_page_args, paginate
 
 # Limites da listagem de comparações: os mesmos do histórico de execuções (SSOT em ``history``), com nome próprio
@@ -55,7 +55,6 @@ class ComparisonContext:
 
     runs: RunRepo
     comparisons: ComparisonRepo
-    evaluation: EvaluationContext
     timezone: str
     clock: Clock = field(default=system_clock)
     events: EventLog = field(default=NULL_EVENT_LOG, compare=False, repr=False)

@@ -105,7 +105,7 @@ CLI (argparse) ───────────────────▶ adap
 
 - `app/config.py` e `app/container.py` — configuração única (`Settings`) e injeção das dependências
 - `app/domain/` — schemas Pydantic, rubrica, motor de prompts (`string.Template`), chave de cache e fluxograma ASCII (sem I/O)
-- `app/services/` — geradores (com 1 reparo automático em JSON inválido), histórico, avaliação, catálogo e comparação justa
+- `app/services/` — geradores (com 1 reparo automático em JSON inválido), histórico, catálogo e comparação justa (onde acontece a avaliação pela rubrica)
 - `catalog/` — 5 perfis (`marta`, `rafael`, `bianca`, `jorge`, `amanda`) e 2 tickets (`t-2fa`, `t-webhook`)
 - `prompts/v1..v4/` — versões imutáveis validadas por `content_sha256` em `meta.json` (a mais nova é a padrão)
 
@@ -117,7 +117,7 @@ CLI (argparse) ───────────────────▶ adap
 ## 🧪 Testes, qualidade e deploy
 
 ```bash
-.venv/bin/pytest -q            # 694 testes offline (provedor fake, sem rede)
+.venv/bin/pytest -q            # 691 testes offline (provedor fake, sem rede)
 .venv/bin/ruff check .         # lint e formatação
 (cd frontend && npm run build) # build da interface web
 ```
