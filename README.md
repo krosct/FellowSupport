@@ -52,7 +52,7 @@ Outros comandos: `meta`, `profile|ticket list|create|update|delete`, `prompt lis
 .venv/bin/uvicorn app.adapters.api.main:app --port 9713
 ```
 
-Acesse **http://127.0.0.1:9713** (abas *Cliente*, *Ticket*, *Prompt*, *Gerar*, *Comparar* e *Histórico*) ou **http://127.0.0.1:9713/api/docs** (Swagger). Principais rotas: `GET /api/meta`, `CRUD /api/profiles|tickets|prompts`, `POST /api/generate`, `GET /api/runs`, `POST/GET /api/comparisons` e `GET /healthz`.
+Acesse **http://127.0.0.1:9713** (abas *Cliente*, *Ticket*, *Prompt*, *Gerar*, *Comparar* e *Histórico*) ou **http://127.0.0.1:9713/api/docs** (Swagger). Principais rotas: `GET /api/meta`, `CRUD /api/profiles|tickets|prompts`, `GET /api/prompt-versions`, `POST /api/generate`, `GET /api/runs`, `POST/GET /api/comparisons` e `GET /healthz`.
 
 ### 🔑 Ativar modelo real (OpenRouter)
 

@@ -195,12 +195,6 @@ def _to_prompt_changes(items: list) -> list[PromptChange]:
     return [PromptChange.model_construct(what=i.what, why=i.why, expected_effect=i.expected_effect) for i in items]
 
 
-@api_router.get("/prompts", response_model=list[PromptVersionOut], tags=["prompts"])
-def list_prompts(container: ContainerDep) -> list[PromptVersionOut]:
-    """Lista as versões de prompt disponíveis, da mais antiga para a mais nova."""
-    return list_prompt_version_infos(container.prompts)
-
-
 @api_router.get("/prompts/{version}", response_model=PromptDetailOut, tags=["prompts"])
 def get_prompt_detail(version: str, container: ContainerDep) -> PromptDetailOut:
     """Metadados e todos os arquivos de uma versão de prompt. Versão inexistente responde 404."""
