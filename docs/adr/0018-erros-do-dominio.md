@@ -5,11 +5,11 @@
 
 ## Contexto
 
-Falhas esperadas (provedor fora do ar, limite de taxa, saída inválida, entidade inexistente, entrada inválida) precisam de mensagens claras no site e na CLI, e o PDF avalia o tratamento de erros e casos de borda.
+Falhas esperadas (provedor fora do ar, limite de taxa, saída inválida, entidade inexistente, entrada inválida) precisam de mensagens claras e consistentes no site e na CLI.
 
 ## Opções consideradas
 
-### Exceções próprias (`LLMUnavailable`, `LLMRateLimited`, `InvalidLLMOutput`, `NotFound`, `ValidationFailed`) mapeadas para 503, 429, 502, 404 e 422 e para códigos de saída da CLI; execuções com erro gravadas com `status: "error"` e fora do cache
+### Exceções próprias (`Unauthorized`, `Forbidden`, `NotFound`, `CacheReplaceRequired`, `ValidationFailed`, `LLMRateLimited`, `InvalidLLMOutput`, `LLMUnavailable`) mapeadas para 401, 403, 404, 409, 422, 429, 502 e 503 e para códigos de saída da CLI; execuções com erro gravadas com `status: "error"` e fora do cache
 
 - **Prós**: Mensagens úteis; a camada de entrada traduz sem conhecer detalhes do SDK; erros ficam auditáveis.
 - **Contras**: Uma hierarquia de exceções a manter.
@@ -37,7 +37,7 @@ Definir as exceções em `domain/errors.py` e traduzi-las nos adaptadores de API
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha clareza e robustez. Perde alguma verbosidade.
-- **Por que compensa**: Compensa porque tratamento de erros é critério explícito de avaliação.
+- **Por que compensa**: Compensa porque separa falhas de domínio da camada de transporte, evita respostas 500 opacas e mantém erros auditáveis fora do cache.
 
 ## Consequências
 

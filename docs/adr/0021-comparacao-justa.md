@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O PDF exige manter cliente, ticket, provedor/modelo e configurações equivalentes ao comparar versões. Confiar na disciplina de quem executa é frágil.
+Para comparar versões de prompt de forma válida, é necessário manter cliente, ticket, provedor/modelo e configurações equivalentes. Confiar apenas na disciplina de quem executa é frágil.
 
 ## Opções consideradas
 

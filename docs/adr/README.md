@@ -1,6 +1,6 @@
 # Registro de decisões de arquitetura (ADRs)
 
-Cada ADR registra uma decisão técnica, as alternativas comparadas (com prós, contras, custo e risco) e como verificá-la. ADRs aceitos são imutáveis: uma decisão que muda gera um ADR novo que substitui o anterior.
+Cada ADR registra uma decisão técnica vigente do projeto, as alternativas comparadas (com prós, contras, custo e risco) e como verificá-la. Decisões que deixaram de existir foram removidas ou consolidadas para manter este registro consistente com a base atual; números cujas decisões saíram do escopo ficam marcados como `Aposentado` (caso do `0030`) para preservar a estabilidade da numeração subsequente.
 
 ## Índice
 
@@ -24,8 +24,8 @@ Cada ADR registra uma decisão técnica, as alternativas comparadas (com prós, 
 | [0016](0016-estrategia-de-testes.md) | Testes: pytest, LLM falso e TestClient | Aceito |
 | [0017](0017-gestao-de-dependencias.md) | uv e requirements.txt com versões fixadas | Aceito |
 | [0018](0018-erros-do-dominio.md) | Exceções do domínio mapeadas para HTTP e CLI | Aceito |
-| [0019](0019-observabilidade-leve.md) | Observabilidade leve com logging e métricas por execução | Aceito |
-| [0020](0020-rubrica-manual-e-llm-juiz.md) | Rubrica em constante única, avaliação manual e LLM-juiz separados | Aceito |
+| [0019](0019-observabilidade-leve.md) | Observabilidade leve com logging e métricas por execução | Ampliado (0043) |
+| [0020](0020-rubrica-e-avaliacao-manual.md) | Rubrica em constante única e avaliação manual | Aceito |
 | [0021](0021-comparacao-justa.md) | Comparação justa garantida por código | Aceito |
 | [0022](0022-defesa-contra-injecao-de-prompt.md) | Defesa contra injeção de prompt pelo ticket | Aceito |
 | [0023](0023-provedor-fake.md) | Provedor fake para rodar sem chave | Aceito |
@@ -33,15 +33,29 @@ Cada ADR registra uma decisão técnica, as alternativas comparadas (com prós, 
 | [0025](0025-idioma-e-fuso.md) | Idioma pt-BR e horários com fuso configurado | Aceito |
 | [0026](0026-modelo-padrao.md) | Modelo padrão de geração e limite de tokens | Aceito |
 | [0027](0027-controle-de-raciocinio.md) | Controle de raciocínio dos modelos gratuitos | Aceito |
-| [0028](0028-politica-de-cache.md) | Política de cache: ponteiro para a execução, acerto gravado e desligamento total | Aceito |
+| [0028](0028-politica-de-cache.md) | Política de cache: ponteiro para a execução, acerto gravado e campos da chave | Aceito |
 | [0029](0029-historico-por-varredura.md) | Histórico por varredura preguiçosa dos arquivos de execução | Aceito |
+| [0030](0030-aposentado.md) | Número aposentado (decisão descontinuada removida do projeto) | Aposentado |
+| [0031](0031-arquivo-de-comparacao-e-vencedor.md) | Arquivo de comparação, vencedor e empate | Aceito |
+| [0032](0032-modelo-do-experimento.md) | Modelo e parâmetros do experimento de comparação | Aceito |
+| [0033](0033-limite-de-taxa-por-ip.md) | Limite de taxa por IP em janela deslizante, em memória | Aceito |
+| [0034](0034-contrato-do-deploy-conf.md) | Contrato do deploy.conf: dados fora das versões, um worker e pacote enxuto | Aceito |
+| [0035](0035-cache-grava-sempre.md) | Cache: gravar sempre e ler só quando pedido | Aceito |
+| [0036](0036-confirmar-substituicao-do-cache.md) | Confirmação antes de substituir entradas do cache | Aceito |
+| [0037](0037-crud-do-catalogo.md) | CRUD de clientes e tickets direto nos arquivos de `catalog/` | Aceito |
+| [0038](0038-cache-das-comparacoes.md) | Cache das comparações e aba Comparar por execuções | Aceito |
+| [0039](0039-versao-padrao-e-a-mais-nova.md) | A versão padrão do prompt é sempre a mais nova | Aceito |
+| [0040](0040-paridade-funcional-api-site-cli.md) | Paridade funcional entre site, API e CLI | Aceito |
+| [0041](0041-cli-adaptador-direto-do-nucleo.md) | CLI como adaptador de entrada direto do núcleo | Aceito |
+| [0042](0042-corte-por-limite-decidido-no-servico.md) | Resposta cortada decidida no serviço, com gasto e provedor registrados | Aceito |
+| [0043](0043-log-de-eventos-json-lines.md) | Log de eventos em JSON Lines na raiz do projeto | Aceito |
 
 ## Template
 
 ```markdown
 # ADR NNNN · Título curto da decisão
 
-- **Status**: Proposto | Aceito | Substituído por ADR NNNN
+- **Status**: Proposto | Aceito | Aposentado
 - **Data**: AAAA-MM-DD
 
 ## Contexto

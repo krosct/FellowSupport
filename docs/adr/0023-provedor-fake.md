@@ -37,7 +37,7 @@ Adicionar o provedor `fake` como padrão de `Settings`. O adaptador real só é 
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha executabilidade garantida. Perde realismo das respostas no modo fake.
-- **Por que compensa**: Compensa porque o checklist do PDF exige que o projeto execute seguindo apenas o README.
+- **Por que compensa**: Compensa porque garante que qualquer pessoa consiga instalar e executar o fluxo completo localmente seguindo apenas o README, sem depender de credenciais externas.
 
 ## Consequências
 

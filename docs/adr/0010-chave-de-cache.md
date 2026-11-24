@@ -9,9 +9,9 @@ Execuções com entrada, versão de prompt e configurações equivalentes devem 
 
 ## Opções consideradas
 
-### SHA-256 do JSON canônico de {conteúdo do perfil, ticket normalizado, tipo, versão, `prompt_sha256`, provedor, modelo, temperatura, `max_tokens`, modo estruturado}
+### SHA-256 do JSON canônico de {conteúdo do perfil, ticket normalizado, tipo, versão, `prompt_sha256` dos arquivos, provedor, modelo, temperatura, `max_tokens`, modo estruturado, `reasoning`}
 
-- **Prós**: Invalida corretamente quando perfil, prompt ou configuração mudam; determinística; independente da ordem das chaves.
+- **Prós**: Invalida corretamente quando perfil, ticket, conteúdo do prompt ou configuração mudam; determinística; independente da ordem das chaves.
 - **Contras**: Qualquer ajuste de parâmetro cria nova entrada; sem TTL, o resultado antigo vale para sempre.
 - **Custo**: Baixo.
 - **Risco**: Baixo: sem TTL, assume-se geração determinística o bastante com temperatura baixa (documentado).
@@ -19,7 +19,7 @@ Execuções com entrada, versão de prompt e configurações equivalentes devem 
 ### Chave composta só de ids (perfil, ticket, versão)
 
 - **Prós**: Chave curta e legível.
-- **Contras**: Não invalida quando um perfil, ticket ou prompt é editado; devolve resultado desatualizado.
+- **Contras**: Não invalida quando um perfil ou ticket é editado ou quando um arquivo de prompt muda; devolve resultado desatualizado.
 - **Custo**: Baixo.
 - **Risco**: Alto: cache obsoleto sem aviso.
 
@@ -37,7 +37,7 @@ Chave SHA-256 sobre o JSON canônico (chaves ordenadas, sem espaços) dos campos
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha correção da invalidação e evidência auditável de cada reaproveitamento. Perde renovação automática.
-- **Por que compensa**: Compensa porque o checklist do PDF pede evidência de que o cache evita ao menos uma chamada equivalente.
+- **Por que compensa**: Compensa porque garante invalidação exata e fornece evidência auditável de que chamadas equivalentes reaproveitam o resultado sem acionar o LLM.
 
 ## Consequências
 

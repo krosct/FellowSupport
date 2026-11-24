@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O PDF (4.4) pede para localizar execuções equivalentes e o plano pede histórico na API, na CLI e no site, com filtros
+O sistema precisa localizar execuções equivalentes e expor histórico na API, na CLI e no site, com filtros
 por cliente, ticket, tipo, versão e status. O ADR 0009 aceitou "listar o histórico exige varrer a pasta" como custo
 do formato de um arquivo JSON por execução. Falta decidir como varrer, onde ficam os filtros e o que a listagem
 devolve.
@@ -33,7 +33,7 @@ devolve.
 ### SQLite
 
 - **Prós**: Consultas e índices de verdade.
-- **Contras**: O PDF pede JSON e a evidência da entrega são os arquivos; migrações e dependência de esquema.
+- **Contras**: Desvia da persistência em arquivos JSON definida no projeto (ADR 0009); adiciona migrações e dependência de esquema.
 - **Custo**: Médio a alto.
 - **Risco**: Médio: desvia do requisito.
 
@@ -66,7 +66,6 @@ devolve.
 ## Consequências
 
 - Se o volume crescer, o ponto de troca é um índice ou SQLite atrás da mesma porta `RunRepo`, sem mudar o serviço.
-- Execuções gravadas antes da Etapa 3 não têm `cache_key`: aparecem na lista, mas nunca casam com o filtro por chave.
 
 ## Como verificar
 

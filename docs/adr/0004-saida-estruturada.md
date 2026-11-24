@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O PDF pede um diagnóstico estruturado e verificável (hipóteses, evidências, faltantes e conclusão) e saídas utilizáveis nos outros três conteúdos. Modelos gratuitos variam no suporte a saída estruturada.
+O projeto exige um diagnóstico estruturado e verificável (hipóteses, evidências, faltantes e conclusão) e saídas estruturadas nos outros três conteúdos. Modelos gratuitos variam no suporte nativo a saída estruturada.
 
 ## Opções consideradas
 
@@ -44,7 +44,7 @@ Um schema Pydantic por tipo de conteúdo, modo de saída configurável com padr�
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha verificabilidade e resiliência a modelos diferentes. Perde simplicidade e, no pior caso, uma chamada extra.
-- **Por que compensa**: Compensa porque a verificabilidade é requisito explícito do PDF e o fallback evita depender de um único modelo.
+- **Por que compensa**: Compensa porque a verificabilidade por schema é um requisito do projeto e o fallback configurável evita depender de um único modelo.
 
 ## Consequências
 

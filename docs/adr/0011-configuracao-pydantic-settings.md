@@ -5,13 +5,13 @@
 
 ## Contexto
 
-A aplicação tem mais de 20 variáveis (provedor, modelo, limites, pastas, servidor) e uma chave secreta que nunca pode vazar em logs ou respostas.
+A aplicação tem mais de 20 variáveis (provedor, modelo, limites, pastas, servidor) e chaves secretas (`OPENROUTER_API_KEY` e `ADMIN_API_KEY`) que nunca podem vazar em logs ou respostas.
 
 ## Opções consideradas
 
-### `pydantic-settings` em `app/config.py`, com `SecretStr` para a chave
+### `pydantic-settings` em `app/config.py`, com `SecretStr` para as chaves
 
-- **Prós**: Tipos e validação na carga; `SecretStr` oculta a chave no repr; fonte única de configuração e padrões.
+- **Prós**: Tipos e validação na carga; `SecretStr` oculta as chaves no repr; fonte única de configuração e padrões.
 - **Contras**: Uma dependência a mais (pequena, do mesmo ecossistema do Pydantic).
 - **Custo**: Baixo.
 - **Risco**: Baixo: erro de configuração aparece cedo, na inicialização.
@@ -32,12 +32,12 @@ A aplicação tem mais de 20 variáveis (provedor, modelo, limites, pastas, serv
 
 ## Decisão
 
-Classe `Settings` com `pydantic-settings`, lendo o `.env`, com provedor padrão `fake` e `OPENROUTER_API_KEY` como `SecretStr`.
+Classe `Settings` com `pydantic-settings`, lendo o `.env`, com provedor padrão `fake` e as chaves `OPENROUTER_API_KEY` e `ADMIN_API_KEY` como `SecretStr`.
 
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha tipagem, validação e proteção do segredo. Perde a menor dependência possível.
-- **Por que compensa**: Compensa porque configuração tipada e segura é parte do critério de implementação técnica do PDF.
+- **Por que compensa**: Compensa porque valida tipos na inicialização, centraliza padrões em um único ponto e protege o segredo contra vazamento acidental em logs ou respostas.
 
 ## Consequências
 

@@ -5,7 +5,7 @@
 
 ## Contexto
 
-A interface web é opcional no PDF, mas conta como diferencial. Precisa ficar bonita e simples sem desviar o esforço da engenharia de prompt.
+O projeto inclui uma interface web simples para operar o assistente e comparar execuções, mantendo o esforço principal concentrado no núcleo e nos prompts.
 
 ## Opções consideradas
 
@@ -33,7 +33,7 @@ A interface web é opcional no PDF, mas conta como diferencial. Precisa ficar bo
 ### CSS escrito do zero
 
 - **Prós**: Nenhuma dependência de estilo.
-- **Contras**: Mais tempo em um front que não é o foco da avaliação.
+- **Contras**: Exige mais tempo e manutenção de estilo em um projeto cujo foco principal é o motor de geração e avaliação de prompts.
 - **Custo**: Alto.
 - **Risco**: Médio: inconsistência visual.
 
@@ -44,7 +44,7 @@ React + Vite em JavaScript, Pico CSS para a base semântica e `src/styles/app.cs
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha rapidez e boa aparência por padrão. Perde personalização visual profunda.
-- **Por que compensa**: Compensa porque o foco do desafio é o prompt, e uma interface limpa já cumpre o papel de diferencial.
+- **Por que compensa**: Compensa porque entrega uma interface limpa e acessível com mínimo esforço de manutenção, sem desviar o projeto do núcleo de prompts.
 
 ## Consequências
 

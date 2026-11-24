@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O PDF pede quatro funções ou estratégias separadas, cada uma com prompt adequado, mesmo compartilhando componentes. Também é desejável gerar todas de uma vez.
+O projeto define quatro geradores ou estratégias separadas (diagnóstico, passo a passo, perguntas de esclarecimento e resumo do fluxo), cada um com prompt adequado, mesmo compartilhando componentes. Também é desejável gerar todas de uma vez.
 
 ## Opções consideradas
 
@@ -26,7 +26,7 @@ O PDF pede quatro funções ou estratégias separadas, cada uma com prompt adequ
 ### Uma única chamada gerando os quatro conteúdos
 
 - **Prós**: Menos chamadas e coerência interna.
-- **Contras**: Prompt gigante (contra a recomendação do PDF), saída longa que estoura `max_tokens`, impossível comparar prompts por tipo.
+- **Contras**: Prompt muito extenso e misturando responsabilidades diferentes, saída longa com maior risco de estourar `max_tokens`, impossível comparar prompts por tipo.
 - **Custo**: Baixo.
 - **Risco**: Alto: perde a avaliação por conteúdo.
 

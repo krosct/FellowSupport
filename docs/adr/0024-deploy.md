@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O deploy público é um ponto extra do PDF. A aplicação precisa de um serviço persistente, HTTPS e proteção da cota gratuita do LLM.
+Para disponibilizar a aplicação publicamente em ambiente web, é necessário um serviço persistente, HTTPS e proteção da cota gratuita do LLM.
 
 ## Opções consideradas
 
@@ -37,7 +37,7 @@ Script de deploy via SSH que instala serviço systemd de usuário atrás de Cadd
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha um deploy simples, barato e verificável. Perde a elasticidade de uma plataforma gerenciada.
-- **Por que compensa**: Compensa porque a carga esperada é mínima e o extra do PDF pede apenas um deploy funcional.
+- **Por que compensa**: Compensa porque a carga esperada é baixa e a arquitetura em servidor único com Caddy e systemd entrega HTTPS, persistência em disco e reinício automático com baixo custo operacional.
 
 ## Consequências
 

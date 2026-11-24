@@ -1,14 +1,13 @@
-# ADR 0028 · Política de cache: ponteiro para a execução, acerto gravado e desligamento total
+# ADR 0028 · Política de cache: ponteiro para a execução, acerto gravado e campos da chave
 
-- **Status**: Aceito (complementa o ADR 0010)
+- **Status**: Aceito (complementa o [ADR 0010](0010-chave-de-cache.md) e o [ADR 0035](0035-cache-grava-sempre.md))
 - **Data**: 2026-11-20
 
 ## Contexto
 
-O ADR 0010 definiu a chave canônica e o acerto gravado como execução. A implementação da Etapa 3 exigiu fechar
-quatro pontos que ele deixou abertos: o que o arquivo de cache guarda, o que o registro de um acerto contém, o que
-"desligar o cache" significa e o que entra na chave. Além disso, o ADR 0027 (posterior ao 0010) criou o parâmetro
-`reasoning`, que muda a saída do modelo e por isso precisa estar na chave.
+O ADR 0010 definiu a chave canônica e o acerto gravado como execução. Restava fechar três pontos estruturais do cache:
+o que o arquivo de cache guarda, o que o registro de um acerto contém e quais campos adicionais entram na chave.
+Além disso, o ADR 0027 criou o parâmetro `reasoning`, que muda a saída do modelo e por isso precisa integrar a chave.
 
 ## Opções consideradas
 
@@ -50,30 +49,12 @@ quatro pontos que ele deixou abertos: o que o arquivo de cache guarda, o que o r
 - **Custo**: Baixo.
 - **Risco**: Alto: o registro mentiria sobre custo e tempo.
 
-### 3. Significado de desligar o cache (`CACHE_ENABLED=false`, `use_cache=false`, `--no-cache`)
+### 3. Campos da chave
 
-#### Não ler **nem gravar**
+#### Os do ADR 0010 com `reasoning` e o hash dos arquivos do prompt (não o do `meta.json`)
 
-- **Prós**: Comportamento previsível ("sem cache" é sem cache); permite medir a latência real do modelo sem alterar
-  o estado do cache; um teste simples verifica (a pasta de cache não é criada).
-- **Contras**: Não dá para "atualizar" o cache com uma geração nova forçada; a entrada antiga permanece.
-- **Custo**: Zero.
-- **Risco**: Baixo.
-
-#### Não ler, mas gravar (regerar e substituir)
-
-- **Prós**: Permite renovar uma entrada que se quer trocar.
-- **Contras**: O interruptor "desligar" passa a ter efeito colateral; depois de um experimento sem cache, as
-  próximas chamadas passam a devolver o resultado do experimento.
-- **Custo**: Baixo.
-- **Risco**: Médio: surpresa para quem esperava um desligamento completo.
-
-### 4. Campos da chave
-
-#### Os do ADR 0010 mais `reasoning` e o hash do prompt dos arquivos (não o do `meta.json`)
-
-- **Prós**: Trocar `LLM_REASONING` muda a saída e, portanto, a chave; editar um prompt sem criar versão nova também
-  invalida (coberto por teste), em vez de devolver saída desatualizada.
+- **Prós**: Trocar `LLM_REASONING` muda a saída e, portanto, a chave; qualquer alteração nos arquivos do prompt
+  também invalida a chave (coberto por teste), em vez de devolver saída desatualizada.
 - **Contras**: Qualquer ajuste de parâmetro cria uma entrada nova; sem TTL, a entrada vale para sempre.
 - **Custo**: Baixo.
 - **Risco**: Baixo.
@@ -91,26 +72,26 @@ quatro pontos que ele deixou abertos: o que o arquivo de cache guarda, o que o r
 - O arquivo de cache é um ponteiro para a execução de origem e só nasce depois de a execução estar gravada.
 - Um acerto grava uma nova execução com `cache_hit: true`, `source_run_id`, `attempts: 0`, `usage: {}`, latência
   medida e `model_used` herdado da origem. Execuções com erro nunca entram no cache.
-- Cache desligado (por configuração ou por chamada) não lê nem grava. A `cache_key` vai no registro de qualquer
-  forma, inclusive no de erro, para o histórico localizar execuções equivalentes.
+- A `cache_key` vai em todo registro (inclusive no de erro e quando `use_cache` está desligado), para o histórico
+  localizar execuções equivalentes. A política de consulta vs. gravação (`use_cache=false` pula apenas a leitura) está
+  no ADR 0035.
 - A chave inclui `reasoning`. Cada tipo do modo `all` consulta o cache sozinho.
 
 ## Por que vence
 
-- **O que ganha e o que perde**: Ganha uma fonte única da saída, registros que dizem a verdade sobre custo e tempo e
-  um interruptor previsível. Perde a renovação forçada de uma entrada e a leitura em um arquivo só.
-- **Por que compensa**: Compensa porque o PDF pede evidência de que o cache evita chamadas equivalentes, e essa
-  evidência só é confiável se o registro do acerto não herdar números da chamada original.
+- **O que ganha e o que perde**: Ganha uma fonte única da saída e registros que dizem a verdade sobre custo e tempo.
+  Perde a leitura em um arquivo só.
+- **Por que compensa**: Compensa porque garante evidência confiável de que o cache evita chamadas equivalentes: se o
+  registro de acerto herdasse números da chamada original, as somas de uso e latência ficariam distorcidas.
 
 ## Consequências
 
 - Somas de `usage` e de `attempts` sobre o histórico refletem o gasto real: acertos contam zero.
-- Para renovar uma entrada, basta apagar `var/cache/<chave>.json` ou mudar um insumo da chave.
-- Chaves antigas (anteriores a esta etapa) não existem: nenhuma execução anterior tem `cache_key`, então nada é
-  reaproveitado delas.
+- Para renovar uma entrada, basta gerar com `use_cache=false` / `--no-cache` (com confirmação, ADR 0036) ou mudar um
+  insumo da chave.
 
 ## Como verificar
 
 `tests/test_cache.py`: segunda geração com `FakeLLM` contador (uma chamada, `cache_hit: true`, `attempts: 0`),
-invalidação por campo, `use_cache=false` sem criar `var/cache/`, erro fora do cache, ponteiro órfão curado e modo
-`all`. `tests/test_cache_key.py` cobre a chave; `tests/test_storage_cache.py`, o armazenamento e a escrita atômica.
+invalidação por campo, erro fora do cache, ponteiro órfão curado e modo `all`. `tests/test_cache_key.py` cobre a chave;
+`tests/test_storage_cache.py`, o armazenamento e a escrita atômica.

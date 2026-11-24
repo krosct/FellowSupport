@@ -1,11 +1,11 @@
 # ADR 0019 · Observabilidade leve com logging e métricas por execução
 
-- **Status**: Aceito
+- **Status**: Aceito (ampliado pelo [ADR 0043](0043-log-de-eventos-json-lines.md))
 - **Data**: 2026-11-20
 
 ## Contexto
 
-O PDF considera observabilidade um extra. É útil saber latência, consumo de tokens e o modelo realmente usado, sem infraestrutura adicional.
+É útil registrar latência, consumo de tokens e o modelo realmente usado em cada execução, sem adicionar infraestrutura externa de monitoramento.
 
 ## Opções consideradas
 

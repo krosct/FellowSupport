@@ -5,13 +5,13 @@
 
 ## Contexto
 
-O PDF exige `requirements.txt`. É preciso instalar rápido, reproduzir ambientes e gerenciar a versão do Python.
+O projeto define o uso de `requirements.txt` para declarar dependências. É preciso instalar rápido, reproduzir ambientes e gerenciar a versão do Python.
 
 ## Opções consideradas
 
 ### `uv` com `requirements.txt` (produção) e `requirements-dev.txt` (pytest, ruff, httpx), versões fixadas
 
-- **Prós**: Instalação muito rápida; compatível com pip; cumpre o PDF; o script de deploy usa o mesmo arquivo.
+- **Prós**: Instalação muito rápida; compatível com pip e com o requisito de `requirements.txt`; o script de deploy usa o mesmo arquivo.
 - **Contras**: Sem lock de dependências transitivas; `uv` precisa estar instalado (ou usar pip).
 - **Custo**: Baixo.
 - **Risco**: Baixo: dependências diretas fixadas reduzem a deriva.
@@ -19,7 +19,7 @@ O PDF exige `requirements.txt`. É preciso instalar rápido, reproduzir ambiente
 ### `pyproject.toml` com `uv.lock`
 
 - **Prós**: Lock completo e reprodutibilidade rigorosa.
-- **Contras**: Ainda seria preciso exportar para `requirements.txt` para cumprir o PDF e o deploy; dois formatos para manter.
+- **Contras**: Ainda seria preciso exportar para `requirements.txt` para atender ao deploy e à convenção do projeto; dois formatos para manter.
 - **Custo**: Médio.
 - **Risco**: Médio: divergência entre lock e requirements.
 
@@ -37,7 +37,7 @@ Usar `uv` para criar o ambiente e instalar, com `requirements.txt` e `requiremen
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha velocidade e simplicidade. Perde o lock transitivo completo.
-- **Por que compensa**: Compensa porque o requisito do PDF é `requirements.txt`, e o pip funciona como alternativa.
+- **Por que compensa**: Compensa porque `requirements.txt` é uma definição do projeto, e o pip funciona como alternativa padrão.
 
 ## Consequências
 

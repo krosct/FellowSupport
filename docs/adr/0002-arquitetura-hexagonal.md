@@ -21,7 +21,7 @@ O sistema depende de elementos instáveis ou caros: um LLM remoto, armazenamento
 - **Prós**: Rápido de escrever e fácil de ler no começo.
 - **Contras**: Mistura prompt, HTTP, I/O e regras; impossível testar sem rede; difícil comparar versões de forma isolada.
 - **Custo**: Baixo no início, alto na manutenção.
-- **Risco**: Alto: a nota de implementação e a testabilidade ficam comprometidas.
+- **Risco**: Alto: a manutenibilidade e a testabilidade ficam comprometidas.
 
 ### MVC em camadas (controller, service, repository)
 
@@ -37,7 +37,7 @@ Arquitetura hexagonal com `domain/` (modelos, regras, rubrica, erros), `ports/` 
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha testabilidade, troca de provedor por configuração e domínio sem dependências externas. Perde alguns arquivos a mais e uma camada de indireção.
-- **Por que compensa**: Compensa porque o ponto central do desafio é comparar prompts de forma reproduzível, o que exige executar o pipeline inteiro sem rede.
+- **Por que compensa**: Compensa porque o núcleo do projeto é comparar prompts de forma reproduzível e isolada, o que exige executar o pipeline inteiro sem rede nem efeitos colaterais.
 
 ## Consequências
 

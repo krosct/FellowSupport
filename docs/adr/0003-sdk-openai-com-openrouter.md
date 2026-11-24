@@ -44,7 +44,7 @@ Usar o SDK `openai` configurado com `base_url` e chave do `.env`, encapsulado no
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha troca de provedor só por configuração e tratamento de erro maduro. Perde minimalismo de dependências.
-- **Por que compensa**: Compensa porque reimplementar retry e erros custa mais que manter uma dependência estável, e o desafio pede configuração por `.env`.
+- **Por que compensa**: Compensa porque reimplementar retry e tratamento de erros custa mais que manter uma dependência estável, mantendo a troca de provedor e modelo via `.env` como definido pelo projeto.
 
 ## Consequências
 

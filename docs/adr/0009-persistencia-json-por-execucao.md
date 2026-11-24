@@ -5,13 +5,13 @@
 
 ## Contexto
 
-O PDF exige salvar cada execução em JSON com data/hora, localizar execuções equivalentes e indicar onde o JSON foi salvo.
+O projeto exige salvar cada execução em JSON com data/hora, localizar execuções equivalentes e informar o caminho onde o arquivo foi salvo.
 
 ## Opções consideradas
 
 ### Um arquivo por execução em `var/runs/AAAA-MM-DD/<ts>_<id>.json`, escrita atômica, comparações em `var/comparisons/` e cache em `var/cache/<sha256>.json`
 
-- **Prós**: O caminho do arquivo responde diretamente a "onde o JSON foi salvo"; sem corrupção por escrita concorrente; fácil de inspecionar e versionar amostras.
+- **Prós**: O caminho do arquivo responde diretamente a "onde o JSON foi salvo"; sem corrupção por escrita concorrente; fácil de inspecionar e auditar cada execução.
 - **Contras**: Listar o histórico exige varrer a pasta; muitos arquivos com o tempo.
 - **Custo**: Baixo.
 - **Risco**: Baixo: escrita atômica (arquivo temporário e `os.replace`) evita arquivos parciais.
@@ -26,7 +26,7 @@ O PDF exige salvar cada execução em JSON com data/hora, localizar execuções 
 ### SQLite
 
 - **Prós**: Consultas, índices e transações.
-- **Contras**: O PDF pede JSON; adiciona esquema e migrações; saída menos inspecionável.
+- **Contras**: Desvia da persistência direta em arquivos JSON definida para o projeto; adiciona esquema e migrações; saída menos inspecionável.
 - **Custo**: Médio.
 - **Risco**: Médio: desvia do requisito.
 
@@ -36,8 +36,8 @@ Um arquivo JSON por execução, escrita atômica via helper único, diretórios 
 
 ## Por que vence
 
-- **O que ganha e o que perde**: Ganha robustez, inspeção simples e aderência ao PDF. Perde consultas eficientes em grande volume, irrelevante nesta escala.
-- **Por que compensa**: Compensa porque a escala é pequena e a evidência da entrega são justamente os arquivos JSON.
+- **O que ganha e o que perde**: Ganha robustez, inspeção simples e aderência ao requisito de arquivos JSON. Perde consultas eficientes em grande volume, irrelevante nesta escala.
+- **Por que compensa**: Compensa porque a escala é pequena e o projeto define os próprios arquivos JSON como registro auditável de cada execução.
 
 ## Consequências
 

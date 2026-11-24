@@ -76,10 +76,10 @@ Expor `LLM_REASONING` em `Settings` e `.env.example` com padrão `default`, envi
 
 ## Consequências
 
-- O modelo padrão segue gastando milhares de tokens com raciocínio; `LLM_MAX_TOKENS=8000` continua necessário (ADR 0026) e pode não bastar para o passo a passo (chamada 6).
+- O modelo padrão segue gastando milhares de tokens com raciocínio; `LLM_MAX_TOKENS=12000` (ADR 0026) dá folga para respostas que precisam de mais tokens, como o passo a passo.
 - Quem usar outro modelo pode testar com `LLM_REASONING=off`; se o provedor recusar, a mensagem de erro traz a causa.
-- Ponto de medição da Etapa 5: repetir `nemotron` com `off` nos cinco tickets e comparar com o modelo padrão antes de qualquer troca de padrão.
+- A troca eventual do modelo padrão depende de medições comparáveis cobrindo todos os tipos de conteúdo e tickets.
 
 ## Como verificar
 
-`.venv/bin/python scripts/smoke_llm.py --reasoning off` (uma chamada real; a linha de `var/smoke/calls.log` registra `reasoning=off`). Testes: `tests/test_llm_openai_compat.py` (corpo da requisição por modo, ausência do parâmetro no `default` e recusa do provedor) e `tests/test_generators.py` (`params.reasoning` no registro).
+`.venv/bin/python -m scripts.smoke_llm --reasoning off` (uma chamada real; `var/smoke/calls.log` registra `reasoning=off`). Testes: `tests/test_llm_openai_compat.py` (corpo da requisição por modo, ausência do parâmetro no `default` e recusa do provedor) e `tests/test_generators.py` (`params.reasoning` no registro).

@@ -11,7 +11,7 @@ O público do produto fictício fala português e os clientes de exemplo incluem
 
 ### Prompts, saídas, documentação e comentários em pt-BR; identificadores e chaves JSON em inglês; horários em ISO 8601 com o fuso de `APP_TIMEZONE` (`America/Sao_Paulo`)
 
-- **Prós**: Vocabulário e exemplos coerentes com a saída esperada; menor risco de respostas em inglês para clientes leigos; chaves em inglês seguem o exemplo do PDF.
+- **Prós**: Vocabulário e exemplos coerentes com a saída esperada; menor risco de respostas em inglês para clientes leigos; chaves JSON em inglês mantêm uniformidade com identificadores do código.
 - **Contras**: Alguns modelos seguem melhor instruções em inglês; exige cuidado com acentuação nos arquivos.
 - **Custo**: Baixo.
 - **Risco**: Baixo: a diferença de desempenho é medida pela rubrica.
@@ -41,7 +41,7 @@ Conteúdo textual em pt-BR; identificadores e chaves JSON em inglês; timestamps
 
 ## Consequências
 
-Enums do catálogo mantêm os valores do PDF com acentuação (`leigo`, `intermediário`, `avançado`, `e-mail`).
+Enums do catálogo usam os valores em português com acentuação definidos pelo projeto (`leigo`, `intermediário`, `avançado`, `e-mail`).
 
 ## Como verificar
 

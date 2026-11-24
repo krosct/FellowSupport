@@ -37,7 +37,7 @@ Cada pasta de versão é imutável; o `meta.json` guarda o SHA-256 dos arquivos 
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha rastreabilidade confiável das comparações. Perde a possibilidade de ajustar uma versão no lugar.
-- **Por que compensa**: Compensa porque o desafio avalia justamente a capacidade de explicar por que uma versão é melhor que outra.
+- **Por que compensa**: Compensa porque comparar versões exige garantir que cada identificador de prompt corresponda exatamente ao mesmo texto em todas as execuções e análises.
 
 ## Consequências
 

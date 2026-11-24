@@ -26,7 +26,7 @@ As chamadas ao LLM são o gargalo e bloqueiam por I/O. É preciso decidir entre 
 ### Filas e workers em segundo plano
 
 - **Prós**: Desacopla requisições longas.
-- **Contras**: Infraestrutura extra; fora do escopo do desafio.
+- **Contras**: Infraestrutura extra desnecessária para o escopo e a escala do projeto.
 - **Custo**: Alto.
 - **Risco**: Médio.
 

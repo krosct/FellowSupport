@@ -11,7 +11,7 @@ O quarto conteúdo é um resumo visual do fluxo. Modelos de linguagem desalinham
 
 ### O LLM devolve uma árvore de decisão (nós e arestas) e o código desenha o ASCII
 
-- **Prós**: Desenho sempre alinhado e testável por snapshot; a estrutura atende à "descrição estruturada de decisão" do PDF e é reaproveitável pela web.
+- **Prós**: Desenho sempre alinhado e testável por snapshot; a representação em nós e arestas é estruturada e reaproveitável tanto na CLI quanto na web.
 - **Contras**: Exige um schema de grafo e um renderizador; o desenho é menos livre.
 - **Custo**: Médio: schema, validação e renderizador.
 - **Risco**: Baixo: grafos inválidos (nó inexistente, ciclo) são rejeitados na validação.
@@ -37,7 +37,7 @@ O schema `FlowSummary` descreve nós e arestas; `domain/flow_render.py` converte
 ## Por que vence
 
 - **O que ganha e o que perde**: Ganha determinismo e verificabilidade. Perde liberdade visual do desenho livre.
-- **Por que compensa**: Compensa porque cobre os dois formatos aceitos pelo PDF (fluxograma ASCII e descrição estruturada) com uma só fonte.
+- **Por que compensa**: Compensa porque entrega tanto a descrição estruturada (JSON de nós e arestas) quanto o fluxograma em ASCII a partir de uma única fonte determinística.
 
 ## Consequências
 
