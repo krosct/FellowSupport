@@ -4,31 +4,30 @@ O SDK ``openai`` 3.x usa o ``httpx2`` por baixo (um fork do ``httpx``, mesma API
 ``MockTransport`` vem de lá: o SDK recusa um ``httpx.Client`` comum.
 """
 
-from __future__ import annotations
-
 import json
 
 import httpx2
 import openai
 import pytest
+from pydantic import SecretStr
 
 from app.adapters.llm.factory import MISSING_KEY_MESSAGE, MissingKeyLLM, build_llm_client
 from app.adapters.llm.fake import FakeLLM
 from app.adapters.llm.openai_compat import OpenAICompatClient
 from app.config import Settings
-from app.domain.errors import RATE_LIMIT_MESSAGE, InvalidLLMOutput, LLMRateLimited, LLMUnavailable
+from app.domain.errors import RATE_LIMIT_MESSAGE, LLMRateLimited, LLMUnavailable
 from app.domain.models import Diagnosis
-from app.ports.llm import LLMParams
+from app.ports.llm import ChatMessage, LLMParams, ReasoningMode, StructuredMode
 
 CHAVE = "sk-or-v1-chave-que-nunca-deve-vazar-123456"
-MENSAGENS = [
+MENSAGENS: list[ChatMessage] = [
     {"role": "system", "content": "Você é um analista."},
     {"role": "user", "content": "<ticket>SMS não chega</ticket>"},
 ]
 JSON_OK = {"campo": "valor"}
 
 
-def _params(modo: str = "json_schema") -> LLMParams:
+def _params(modo: StructuredMode = "json_schema") -> LLMParams:
     return LLMParams(model="vendor/modelo:free", temperature=0.1, max_tokens=500, structured_mode=modo)
 
 
@@ -50,6 +49,7 @@ class Servidor:
         self.requisicoes: list[httpx2.Request] = []
 
     def __call__(self, request: httpx2.Request) -> httpx2.Response:
+        # Grava a requisição recebida e retorna (ou lança) a resposta simulada da fila.
         self.requisicoes.append(request)
         item = self._respostas.pop(0) if len(self._respostas) > 1 else self._respostas[0]
         if isinstance(item, Exception):
@@ -61,6 +61,7 @@ class Servidor:
 
 
 def _cliente(servidor: Servidor, max_retries: int = 0) -> OpenAICompatClient:
+    # Instancia o cliente real apontando para o MockTransport em memória do httpx2.
     return OpenAICompatClient(
         api_key=CHAVE, base_url="https://provedor.teste/api/v1", timeout_s=5, max_retries=max_retries,
         http_client=openai.DefaultHttpxClient(transport=httpx2.MockTransport(servidor)),
@@ -91,13 +92,22 @@ def test_tokens_de_raciocinio_entram_no_uso_quando_informados() -> None:
     assert r.usage == {"prompt_tokens": 5, "completion_tokens": 50, "reasoning_tokens": 40}
 
 
-def test_resposta_cortada_por_max_tokens_sem_json_falha_com_a_causa() -> None:
-    """Modelo de raciocínio que gasta todos os tokens pensando devolve conteúdo vazio com finish_reason=length."""
-    corpo = _resposta(content="", usage={"prompt_tokens": 5, "completion_tokens": 1500, "total_tokens": 1505,
-                                          "completion_tokens_details": {"reasoning_tokens": 1500}})
+def test_resposta_cortada_sem_json_e_devolvida_com_a_razao_o_provedor_e_o_gasto() -> None:
+    """O adaptador não decide sobre o corte (ADR 0042): devolve ``finish_reason``, o provedor que atendeu, o id da
+    geração e o uso, e o serviço registra tudo antes de falhar."""
+    corpo = _resposta(content="", usage={"prompt_tokens": 5, "completion_tokens": 2400, "total_tokens": 2405,
+                                          "completion_tokens_details": {"reasoning_tokens": 2077}},
+                      provider="ProvedorX")
     corpo["choices"][0]["finish_reason"] = "length"
-    with pytest.raises(InvalidLLMOutput, match=r"1500 tokens.*LLM_MAX_TOKENS"):
-        _cliente(Servidor(httpx2.Response(200, json=corpo))).complete(MENSAGENS, Diagnosis, _params())
+    r = _cliente(Servidor(httpx2.Response(200, json=corpo))).complete(MENSAGENS, Diagnosis, _params())
+    assert r.parsed is None and r.finish_reason == "length"
+    assert r.provider_used == "ProvedorX" and r.response_id == "gen-1"
+    assert r.usage == {"prompt_tokens": 5, "completion_tokens": 2400, "reasoning_tokens": 2077}
+
+
+def test_provedor_ausente_vira_texto_vazio() -> None:
+    r = _cliente(Servidor(_ok())).complete(MENSAGENS, Diagnosis, _params())
+    assert r.provider_used == "" and r.finish_reason == "stop"
 
 
 def test_corte_por_max_tokens_com_json_completo_e_aceito() -> None:
@@ -230,7 +240,7 @@ def test_fabrica_fake_por_padrao(settings: Settings) -> None:
 
 
 def test_fabrica_openrouter_sem_chave_falha_no_uso_com_mensagem_clara() -> None:
-    cliente = build_llm_client(Settings(_env_file=None, llm_provider="openrouter"))
+    cliente = build_llm_client(Settings(llm_provider="openrouter"))
     assert isinstance(cliente, MissingKeyLLM)
     with pytest.raises(LLMUnavailable, match="OPENROUTER_API_KEY") as exc:
         cliente.complete(MENSAGENS, Diagnosis, _params())
@@ -238,14 +248,14 @@ def test_fabrica_openrouter_sem_chave_falha_no_uso_com_mensagem_clara() -> None:
 
 
 def test_fabrica_openrouter_com_chave_cria_o_adaptador_real() -> None:
-    settings = Settings(_env_file=None, llm_provider="openrouter", openrouter_api_key=CHAVE)
+    settings = Settings(llm_provider="openrouter", openrouter_api_key=SecretStr(CHAVE))
     assert isinstance(build_llm_client(settings), OpenAICompatClient)
 
 
 # --- controle de raciocínio (ADR 0027) ---------------------------------------------------------------
 
 
-def _params_raciocinio(modo: str) -> LLMParams:
+def _params_raciocinio(modo: ReasoningMode) -> LLMParams:
     return LLMParams(model="vendor/modelo:free", temperature=0.1, max_tokens=500, structured_mode="json_schema",
                      reasoning=modo)
 
@@ -266,7 +276,7 @@ def test_raciocinio_default_nao_envia_o_parametro() -> None:
         ("high", {"effort": "high"}),
     ],
 )
-def test_raciocinio_vai_no_corpo_da_requisicao(modo: str, esperado: dict) -> None:
+def test_raciocinio_vai_no_corpo_da_requisicao(modo: ReasoningMode, esperado: dict) -> None:
     servidor = Servidor(_ok())
     _cliente(servidor).complete(MENSAGENS, Diagnosis, _params_raciocinio(modo))
     assert servidor.corpo()["reasoning"] == esperado
@@ -281,7 +291,7 @@ def test_raciocinio_obrigatorio_recusado_pelo_provedor_vira_llm_unavailable_com_
 
 
 def test_settings_aceita_so_modos_de_raciocinio_validos() -> None:
-    assert Settings(_env_file=None).llm_reasoning == "default"
-    assert Settings(_env_file=None, llm_reasoning="off").llm_reasoning == "off"
+    assert Settings().llm_reasoning == "default"
+    assert Settings(llm_reasoning="off").llm_reasoning == "off"
     with pytest.raises(ValueError):
-        Settings(_env_file=None, llm_reasoning="desligado")
+        Settings(llm_reasoning="desligado")  # type: ignore[arg-type]

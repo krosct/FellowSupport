@@ -1,17 +1,16 @@
 """Testes do renderizador ASCII: snapshots (linear, ramificação com convergência, rótulo longo), ordem dos
 ramos, determinismo e proteção contra ciclos (ADR 0008)."""
 
-from __future__ import annotations
-
 import pytest
 
 from app.domain.flow_render import LABEL_WIDTH, render_flow
-from app.domain.models import FlowEdge, FlowNode, FlowSummary
+from app.domain.models import FlowEdge, FlowNode, FlowNodeType, FlowSummary
 
 
 def _fluxo(nos: list[tuple[str, str, str]], arestas: list[tuple[str, str, str]]) -> FlowSummary:
+    # Constrói um FlowSummary a partir de tuplas curtas de nós e arestas.
     return FlowSummary(
-        nodes=[FlowNode(id=i, type=t, label=rotulo) for i, t, rotulo in nos],
+        nodes=[FlowNode(id=i, type=FlowNodeType(t), label=rotulo) for i, t, rotulo in nos],
         edges=[FlowEdge(source=a, target=b, label=rotulo) for a, b, rotulo in arestas],
     )
 
@@ -120,8 +119,10 @@ def test_nenhuma_linha_de_rotulo_passa_da_largura() -> None:
 
 def test_protecao_contra_ciclo_nao_entra_em_laco() -> None:
     """Um grafo com ciclo só existe se montado sem validação; o renderizador termina e aponta a volta."""
-    nos = [FlowNode(id="a", type="start", label="Início"), FlowNode(id="b", type="action", label="Tentar"),
-           FlowNode(id="c", type="decision", label="Deu certo?"), FlowNode(id="d", type="end", label="Fim")]
+    nos = [FlowNode(id="a", type=FlowNodeType.START, label="Início"),
+           FlowNode(id="b", type=FlowNodeType.ACTION, label="Tentar"),
+           FlowNode(id="c", type=FlowNodeType.DECISION, label="Deu certo?"),
+           FlowNode(id="d", type=FlowNodeType.END, label="Fim")]
     arestas = [FlowEdge(source="a", target="b", label=""), FlowEdge(source="b", target="c", label=""),
                FlowEdge(source="c", target="b", label="Não"), FlowEdge(source="c", target="d", label="Sim")]
     ciclico = FlowSummary.model_construct(nodes=nos, edges=arestas)
@@ -139,6 +140,6 @@ def test_protecao_contra_ciclo_nao_entra_em_laco() -> None:
 
 
 def test_fluxo_sem_start_levanta_erro() -> None:
-    sem_inicio = FlowSummary.model_construct(nodes=[FlowNode(id="a", type="end", label="Fim")], edges=[])
+    sem_inicio = FlowSummary.model_construct(nodes=[FlowNode(id="a", type=FlowNodeType.END, label="Fim")], edges=[])
     with pytest.raises(ValueError, match="start"):
         render_flow(sem_inicio)

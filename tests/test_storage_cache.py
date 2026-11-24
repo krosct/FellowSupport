@@ -1,7 +1,5 @@
 """Testes do ``CacheStore`` em JSON: ponteiro para a execução de origem, escrita atômica e tolerância a lixo."""
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -41,10 +39,12 @@ def test_get_de_chave_inexistente_ou_malformada_devolve_none(tmp_path: Path) -> 
 
 
 def test_put_substitui_a_entrada_da_mesma_chave(tmp_path: Path) -> None:
+    # Sobrescreve o ponteiro da chave existente sem deixar arquivos temporários.
     cache = JsonCacheStore(tmp_path)
     cache.put(_entrada(origem="aaaaaaaaaaaa"))
     cache.put(_entrada(origem="bbbbbbbbbbbb"))
-    assert cache.get(CHAVE).source_run_id == "bbbbbbbbbbbb"
+    entrada = cache.get(CHAVE)
+    assert entrada is not None and entrada.source_run_id == "bbbbbbbbbbbb"
     assert [p.name for p in (tmp_path / "cache").iterdir()] == [f"{CHAVE}.json"]  # sem temporários
 
 
@@ -66,6 +66,7 @@ def test_put_com_chave_malformada_e_recusado(tmp_path: Path) -> None:
 
 
 def test_escrita_do_cache_e_atomica(tmp_path: Path, monkeypatch) -> None:
+    # Simula erro no os.replace para confirmar que o cache anterior não é corrompido.
     cache = JsonCacheStore(tmp_path)
     cache.put(_entrada(origem="aaaaaaaaaaaa"))
 
@@ -75,5 +76,6 @@ def test_escrita_do_cache_e_atomica(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(json_files.os, "replace", falha)
     with pytest.raises(OSError):
         cache.put(_entrada(origem="bbbbbbbbbbbb"))
-    assert cache.get(CHAVE).source_run_id == "aaaaaaaaaaaa"  # o anterior segue íntegro
+    entrada = cache.get(CHAVE)
+    assert entrada is not None and entrada.source_run_id == "aaaaaaaaaaaa"  # o anterior segue íntegro
     assert [p.name for p in (tmp_path / "cache").iterdir()] == [f"{CHAVE}.json"]

@@ -1,0 +1,34 @@
+{
+  "version": "v3",
+  "based_on": "v2",
+  "description": "Ajustes finos de adaptação explícita ao perfil, fidelidade de tela, rótulos completos no fluxo, referência em if_it_fails e escrita falada no telefone.",
+  "created": "2026-11-23",
+  "changes": [
+    {
+      "what": "adaptation.json: explicita regras de vocabulário e estilo em tech_level e comm_style (mantendo channel simples para $channel_format).",
+      "why": "Na v2 (643f6ea79869), o estilo didático apareceu de forma irregular e o nível leigo nem sempre traduziu termos técnicos.",
+      "expected_effect": "Aumenta customer_fit ao orientar explicitamente explicação do porquê e nível de jargão por perfil."
+    },
+    {
+      "what": "flow_summary.md: exige frases curtas e completas em todos os nós (inclusive start e end), idealmente até 70 chars e sem cortar palavras.",
+      "why": "Na v2 (e07a0b060cd5), o nó n1 foi cortado em 100 caracteres no meio da frase ('por mensagem de') e n7 acumulou duas ações.",
+      "expected_effect": "Elimina rótulos truncados no fluxograma ASCII e melhora a clareza."
+    },
+    {
+      "what": "clarifying_questions.md e resolution_steps.md: proíbem inventar telas ou informações exibidas na tela que o ticket não citou.",
+      "why": "Na v2 (323ecdcdfd3d e 643f6ea79869), o modelo supôs que a tela de 2FA exibe o número ou os últimos dígitos do telefone.",
+      "expected_effect": "Elimina alucinações de interface nos conteúdos voltados ao cliente."
+    },
+    {
+      "what": "resolution_steps.md: orienta referenciar 'o próximo passo' em if_it_fails em vez de chutar número de passo.",
+      "why": "Na v2 (643f6ea79869), o passo 3 mandou seguir para o próprio passo 3 em caso de falha.",
+      "expected_effect": "Evita erros de numeração interna em passos encadeados."
+    },
+    {
+      "what": "diagnosis.md, resolution_steps.md e clarifying_questions.md: pedem horários e siglas por extenso no canal telefone (em diagnosis, focado em customer_summary).",
+      "why": "Na v2 (643f6ea79869 e 323ecdcdfd3d), apareceram 'DDD' e '10h' nos textos voltados ao cliente.",
+      "expected_effect": "Melhora aderência ao canal telefone sem prejudicar siglas técnicas em chat/e-mail ou campos internos."
+    }
+  ],
+  "content_sha256": "1afbfdb3d81d270d975827ac60aee4a4dc134c7f64b4d5ffa7e54d9ffb6ce846"
+}

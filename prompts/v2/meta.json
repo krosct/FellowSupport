@@ -1,45 +1,34 @@
 {
   "version": "v2",
   "based_on": "v1",
-  "description": "Hipótese: regras explícitas de adaptação por dimensão do perfil, priorização das perguntas, verificação em cada passo e checklist de autoverificação, sem inflar os prompts.",
-  "created": "2026-11-20",
+  "description": "Ajustes finos de aderência factual, papel do atendimento, contingências e granularidade dos nós a partir das 4 runs da v1.",
+  "created": "2026-11-23",
   "changes": [
     {
-      "what": "adaptation.json passa de rótulos crus (\"leigo\") para regras explícitas por valor das três dimensões: leigo sem jargão, com analogias e um conceito por frase; intermediário com termos técnicos explicados; avançado com termos precisos, comandos, códigos de erro e logs; direto, detalhado e didático definem extensão e profundidade; telefone com frases faladas e números por extenso, e-mail com saudação, blocos e despedida, chat com mensagens curtas. context.md passa a apresentar o perfil como regras de adaptação, com a ordem de desempate (canal, depois nível, depois estilo).",
-      "why": "Na v1 o modelo recebe só o rótulo (\"nível: leigo\") e decide sozinho o que isso significa. Na execução real da v1 (passo a passo para Dona Marta, ADR 0027), o texto usa termos como \"modo avião\" sem apoio e nenhum passo explica o porquê, embora o perfil seja leigo e didático.",
-      "expected_effect": "customer_fit sobe, porque vocabulário, profundidade e tamanho passam a ter critério verificável por perfil. Clareza tende a subir junto (um conceito por frase) e não deve cair, pois as regras de extensão evitam o excesso de texto.",
-      "risk": "Regras conflitantes (ex.: direto com didático no mesmo texto) confundem o modelo; mitigado pela ordem de desempate. As regras podem fazer o modelo exagerar na analogia e perder precisão técnica para leigos."
+      "what": "system.md: explicita que o assistente já é o atendimento do produto e não deve mandar o cliente ligar para o suporte.",
+      "why": "Na v1 (run 8a526ff7c184), o passo 5 mandou a cliente ligar para o suporte do NuvemPonto mesmo já estando no atendimento.",
+      "expected_effect": "Melhora acionabilidade e clareza ao separar ações do cliente e escalonamento interno."
     },
     {
-      "what": "diagnosis.md passa a receber a restrição de formato do canal ($channel_format) e a pedir que todos os textos sigam as regras de adaptação. Nas informações faltantes, pede ordem de utilidade e quais hipóteses a resposta confirmaria ou descartaria.",
-      "why": "A validação por código reprova markdown em qualquer saída de telefone (channel_rules), mas o prompt de diagnóstico da v1 não informava a restrição: a violação só apareceria no reparo, que custa uma chamada extra. As informações faltantes da v1 não diziam o que cada resposta separaria.",
-      "expected_effect": "customer_fit sobe no diagnóstico para telefone (menos reparos por markdown) e actionability sobe, porque o atendente sabe qual dado pedir primeiro e para que serve.",
-      "risk": "Pedir adaptação em todos os campos pode suavizar demais as hipóteses técnicas para perfis leigos, reduzindo a precisão do diagnóstico para o atendente."
+      "what": "diagnosis.md: exige fatos literais do ticket em evidence_for e evidence_against, sem suposições.",
+      "why": "Na v1 (run e6f966386aa7), H2 e H3 listaram inferências e afirmações contrárias ao relato como evidência.",
+      "expected_effect": "Aumenta a fidelidade factual do diagnóstico sem alterar schema ou tamanho da saída."
     },
     {
-      "what": "clarifying_questions.md ganha critérios de priorização em ordem: primeiro a pergunta que mais separa as hipóteses prováveis, depois a mais fácil para o cliente responder sozinho no nível técnico dele; o motivo e o campo unlocks passam a citar as hipóteses separadas.",
-      "why": "A v1 pede só \"da mais para a menos importante\", sem dizer o que é importante. Sem critério, a ordem fica ao gosto do modelo e pode começar por perguntas difíceis para o perfil (pedir log a quem é leigo).",
-      "expected_effect": "actionability sobe, porque a primeira pergunta é a que mais avança o atendimento e a de resposta mais fácil. customer_fit sobe, pois o nível técnico passa a condicionar o que se pede.",
-      "risk": "Dois critérios podem apontar perguntas diferentes e o modelo escolher o menos útil; a ordem escrita (separar hipóteses primeiro) reduz o risco, mas não o elimina."
+      "what": "resolution_steps.md: evita repetir tentativas que o ticket já informou falharem sem explicar o que mudou e pede if_it_fails concreto.",
+      "why": "Na v1 (run 8a526ff7c184), o passo 2 repetiu pedir o código após 5 falhas e 4 de 5 if_it_fails só mandavam seguir para o próximo passo.",
+      "expected_effect": "Melhora acionabilidade dos passos e utilidade das contingências."
     },
     {
-      "what": "resolution_steps.md exige uma verificação em cada passo: expected_result vira algo observável na hora, if_it_fails vira ação concreta ou escalonamento (nunca só \"vá para o próximo passo\"), e os passos pulam o que o ticket já responde, começando pelo de maior chance.",
-      "why": "Na execução real da v1 (passo a passo para Dona Marta), 3 dos 5 passos tinham \"Passe para o próximo passo\" em if_it_fails, e o passo 1 mandava checar o sinal do celular embora o ticket diga que o banco acabou de mandar SMS.",
-      "expected_effect": "actionability sobe, porque cada passo diz como conferir o resultado e o que fazer se falhar. clarity sobe pela ordem mais curta, sem passos redundantes.",
-      "risk": "A exigência de verificação pode alongar cada passo e o tamanho total, em tensão com o estilo direto; passos que pulam o já informado podem omitir uma checagem que o cliente informou errado."
+      "what": "clarifying_questions.md: proíbe perguntar dados internos da conta inacessíveis quando o cliente está sem acesso.",
+      "why": "Na v1 (run 2dfd13e8a625), a pergunta 1 pediu para a cliente confirmar o número cadastrado dentro do sistema sem conseguir logar.",
+      "expected_effect": "Garante perguntas 100% respondíveis pelo cliente."
     },
     {
-      "what": "flow_summary.md pede, depois de cada ação do cliente, uma decisão que verifica se ela funcionou, com ramos para a resolução e para o próximo passo ou escalonamento.",
-      "why": "Na v1 o fluxo pode encadear ações sem pontos de verificação, o que reduz o valor do fluxograma como guia de atendimento (sem saber quando seguir ou escalar).",
-      "expected_effect": "actionability sobe, porque o fluxograma mostra o ponto de verificação de cada passo e a saída por escalonamento.",
-      "risk": "O grafo cresce e pode esbarrar no limite de 14 nós do schema, ou ficar repetitivo; o prompt informa o limite de nós ao modelo."
-    },
-    {
-      "what": "Checklist de autoverificação, com 3 itens, ao final dos quatro prompts de conteúdo: perfil respeitado (nível, estilo e canal), fidelidade ao ticket, consistência estrutural e resposta só em JSON. O texto pede que a conferência seja silenciosa e a lista não apareça na saída.",
-      "why": "As inconsistências que o sistema detecta por código (ids, ordem, formato do canal) acionam o reparo, que custa uma chamada extra. Uma conferência final no prompt tenta evitá-las antes da validação.",
-      "expected_effect": "clarity e customer_fit sobem pela menor chance de violar formato e perfil. Menos tentativas de reparo por execução (campo attempts).",
-      "risk": "Alonga cada prompt (cerca de 350 caracteres por tipo) e consome tokens de raciocínio em modelos que pensam; o modelo pode copiar a lista para a saída, o que o schema estrito recusa e o reparo corrige."
+      "what": "flow_summary.md: orienta uma única ação ou pergunta curta por nó action ou decision.",
+      "why": "Na v1 (run 63488f931829), o nó n10 acumulou três ações diferentes em um único rótulo de 98 caracteres.",
+      "expected_effect": "Melhora a clareza e a leitura do fluxograma ASCII."
     }
   ],
-  "content_sha256": "cbffc200484ddf15e91c94b0e63d32d3bc637951be3f45f7701aae086fc00d32"
+  "content_sha256": "c928f045f218304a92b2ff33ab3e0d4beb2c6f486148fff4957c9b394fc046ea"
 }

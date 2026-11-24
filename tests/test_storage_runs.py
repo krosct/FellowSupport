@@ -1,7 +1,5 @@
 """Testes da persistência de execuções: um arquivo por execução, escrita atômica e caminho exibido (ADR 0009)."""
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -21,7 +19,7 @@ def test_grava_em_runs_data_e_arquivo_com_carimbo_e_id(tmp_path: Path, make_reco
 
 
 def test_arquivo_salvo_valida_de_volta_e_preserva_acentos(tmp_path: Path, make_record) -> None:
-    registro = make_record(ticket={"id": None, "title": "Ticket digitado", "text": "não é possível acessar"})
+    registro = make_record(ticket={"id": "t-acesso", "title": "Não acesso", "text": "não é possível acessar"})
     caminho = Path(JsonRunRepo(tmp_path).save(registro))
     bruto = caminho.read_text(encoding="utf-8")
     assert "não é possível acessar" in bruto  # ensure_ascii=False
@@ -42,6 +40,7 @@ def test_pasta_do_dia_segue_o_fuso_do_timestamp(tmp_path: Path, make_record) -> 
 
 
 def test_escrita_atomica_nao_deixa_temporario_nem_corrompe_o_anterior(tmp_path: Path, monkeypatch) -> None:
+    # Simula erro no os.replace para garantir atomicidade ao salvar uma execução.
     alvo = tmp_path / "x.json"
     atomic_write_json(alvo, {"v": 1})
 
@@ -110,3 +109,14 @@ def test_iter_recent_pula_arquivo_ilegivel_e_sem_pasta_devolve_vazio(tmp_path: P
     Path(repo.save(make_record(run_id="aaaaaaaaaaaa"))).write_text("lixo", encoding="utf-8")
     repo.save(make_record(run_id="bbbbbbbbbbbb", timestamp="2026-11-20T15:00:00-03:00"))
     assert [s.record.run_id for s in repo.iter_recent()] == ["bbbbbbbbbbbb"]
+
+
+def test_regravar_a_mesma_execucao_substitui_o_arquivo_sem_criar_outro(tmp_path: Path, make_record) -> None:
+    """A avaliação reusa ``save``: mesmo ``run_id`` e ``timestamp`` caem no mesmo caminho (troca atômica)."""
+    repo = JsonRunRepo(tmp_path)
+    original = make_record()
+    primeiro = repo.save(original)
+    segundo = repo.save(original.model_copy(update={"evaluation": {"evaluator": "candidato"}}))
+    assert primeiro == segundo
+    assert len(list((tmp_path / "runs").rglob("*.json"))) == 1
+    assert repo.get("abc123def456").record.evaluation == {"evaluator": "candidato"}

@@ -4,8 +4,6 @@ O núcleo conhece só estes tipos. Quem fala com o SDK, com a rede ou com um sim
 ``adapters/llm``. As portas são síncronas (ADR 0015).
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, TypedDict
@@ -23,6 +21,7 @@ StructuredMode = Literal["json_schema", "json_object", "prompt"]
 ReasoningMode = Literal["default", "off", "none", "low", "medium", "high"]
 
 
+# Estruturas de entrada e saída trocadas com qualquer provedor de LLM.
 class ChatMessage(TypedDict):
     """Uma mensagem no formato de chat usado por todos os provedores compatíveis."""
 
@@ -32,7 +31,7 @@ class ChatMessage(TypedDict):
 
 @dataclass(frozen=True)
 class LLMParams:
-    """Parâmetros de uma chamada. Entram no registro da execução e, na Etapa 3, na chave de cache."""
+    """Parâmetros de uma chamada. Entram no registro da execução e na chave de cache."""
 
     model: str
     temperature: float
@@ -47,6 +46,10 @@ class LLMResult:
 
     ``parsed`` é o objeto JSON decodificado do texto (ou ``None`` se não houver JSON utilizável). Quem decide se
     ele é válido para o schema é o serviço, com Pydantic.
+
+    ``finish_reason`` diz por que o modelo parou (``stop``, ``length``...): com ``length`` e sem JSON, o serviço
+    falha já, com o gasto registrado. ``provider_used`` e ``response_id`` identificam quem atendeu de fato (o
+    OpenRouter roteia o mesmo modelo entre vários provedores) e a geração no provedor; vazios quando não informados.
     """
 
     text: str
@@ -54,6 +57,9 @@ class LLMResult:
     usage: dict[str, int] = field(default_factory=dict)
     latency_ms: int = 0
     model_used: str = ""
+    finish_reason: str = ""
+    provider_used: str = ""
+    response_id: str = ""
 
 
 class LLMClient(Protocol):
@@ -64,7 +70,7 @@ class LLMClient(Protocol):
 
         Levanta ``LLMUnavailable`` (provedor fora do ar, sem chave, erro de rede) ou ``LLMRateLimited`` (429).
         Uma resposta que não valida contra ``schema`` NÃO é erro aqui: devolve-se o texto e o serviço decide.
-        Exceção: resposta cortada pelo limite de tokens e sem JSON aproveitável levanta ``InvalidLLMOutput``
-        direto, porque o reparo bateria no mesmo limite.
+        Isso vale também para a resposta cortada pelo limite de tokens: o adaptador devolve ``finish_reason`` e o
+        uso medido, e o serviço decide (assim o gasto e o provedor entram no registro da execução, ADR 0042).
         """
         ...

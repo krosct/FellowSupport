@@ -5,8 +5,6 @@ offline, para a demonstração e para os testes. As respostas são marcadas como
 não a qualidade de um modelo real.
 """
 
-from __future__ import annotations
-
 import json
 import re
 import time
@@ -47,6 +45,7 @@ _TICKET_TAG = re.compile(r"<ticket>(.*?)</ticket>", re.DOTALL)
 def _ticket_snippet(messages: Sequence[ChatMessage]) -> str:
     """Primeiro trecho do texto do ticket (entre ``<ticket>`` e ``</ticket>``), para a resposta parecer ligada
     à entrada. Sem as tags, devolve um texto genérico."""
+    # Procura do fim para o começo a última mensagem que contenha <ticket>.
     for message in reversed(messages):
         found = _TICKET_TAG.search(message["content"])
         if found:
@@ -196,6 +195,7 @@ class FakeLLM:
 
     def complete(self, messages: Sequence[ChatMessage], schema: type[BaseModel], params: LLMParams) -> LLMResult:
         """Monta a resposta simulada do ``schema`` pedido. Schema sem simulação vira ``ValidationFailed``."""
+        # Localiza o construtor simulado pelo schema, gera a saída e estima tokens.
         started = time.perf_counter()
         builder = _BUILDERS.get(schema)
         if builder is None:
@@ -211,4 +211,6 @@ class FakeLLM:
             usage={"prompt_tokens": prompt_tokens, "completion_tokens": len(text) // 4},
             latency_ms=int((time.perf_counter() - started) * 1000),
             model_used=FAKE_MODEL_NAME,
+            finish_reason="stop",
+            provider_used=FAKE_MODEL_NAME,
         )

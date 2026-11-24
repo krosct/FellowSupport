@@ -5,23 +5,8 @@
     "text": "Desde ontem à tarde não consigo entrar no NuvemPonto para registrar o ponto da equipe. Depois que digito a senha, o sistema pede um código de 6 dígitos por SMS, mas o SMS não chega. Já pedi o código umas 5 vezes (a última foi hoje às 8h10) e nada. Troquei de chip na semana passada, mas o número continua o mesmo. Meu celular recebe SMS de outras coisas normalmente: o banco mandou um agora há pouco. Não sei se tenho aplicativo autenticador configurado, nunca mexi nisso. Preciso fechar o ponto da equipe até as 10h."
   },
   {
-    "id": "t-sync",
-    "title": "App mobile não sincroniza os registros de ponto",
-    "text": "O app do NuvemPonto no meu Android (Samsung A54, Android 14, app versão 4.12.1) mostra \"Sincronização pendente\" há 3 dias. Os pontos que bati ficam com um relógio laranja e não aparecem no painel web do gestor. No Wi-Fi do escritório e no 4G acontece igual. Se abro o NuvemPonto pelo navegador do celular, funciona normal. Já fechei e abri o app várias vezes. Não reinstalei porque tenho medo de perder os 14 registros pendentes. Acho que a economia de bateria está ligada. O app atualizou sozinho na semana passada."
-  },
-  {
     "id": "t-webhook",
     "title": "API e webhook retornando 401 e 429",
     "text": "Nossa integração com a API de eventos começou a falhar hoje por volta das 09:40 (UTC-3). Dois sintomas: 1) o endpoint POST /v2/punches retorna 401 {\"error\":\"invalid_token\"} em cerca de 30% das chamadas, com o mesmo token; 2) quando o job de retry reenvia em lote (200 eventos a cada 30 s) passamos a receber 429 com cabeçalho Retry-After: 60. O token foi gerado em 12/11 e o painel mostra \"expira em 90 dias\". Ontem à noite rotacionamos o segredo de assinatura HMAC do webhook, mas só atualizamos o ambiente de produção; o staging também chama a API e não foi atualizado. Request-ids de exemplo: req_8f21c (401) e req_a07d4 (429). Plano contratado: Pro. Não alteramos nenhum limite."
-  },
-  {
-    "id": "t-dashboard",
-    "title": "Dashboard lento depois de importar o histórico",
-    "text": "Ontem importamos o histórico de 2 anos de uma empresa que adquirimos (CSV com cerca de 480 mil linhas de marcações). Desde então o dashboard de Horas e Banco de Horas leva de 40 a 50 segundos para abrir; antes levava 3 segundos. As outras telas (cadastro de funcionários, escalas) estão normais. Acontece para todos os gestores, no Chrome e no Edge. Com o filtro \"últimos 7 dias\" continua lento; com filtro de 1 dia abre em uns 10 segundos. A importação terminou com a mensagem \"Concluída com 312 avisos\", mas ninguém baixou o relatório de avisos. Temos 850 funcionários ativos."
-  },
-  {
-    "id": "t-csv",
-    "title": "CSV exportado com acentos quebrados",
-    "text": "Ao exportar o relatório \"Espelho de ponto\" em CSV, nomes como \"José\" viram \"JosÃ©\" e \"Conceição\" vira \"ConceiÃ§Ã£o\" quando abro no Excel (Windows 11, Excel 365 em português). Se abro o mesmo arquivo no Bloco de Notas, fica certo. Exportei de novo e deu o mesmo resultado. Uma colega com Mac disse que no Numbers aparece correto. Preciso enviar o arquivo para a contabilidade até amanhã; o sistema deles só aceita CSV com separador ponto e vírgula. Não sei qual é a codificação do arquivo."
   }
 ]

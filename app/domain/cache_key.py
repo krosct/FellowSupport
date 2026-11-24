@@ -8,8 +8,6 @@ desses campos muda a chave; diferença só de espaços no ticket ou de ordem das
 Fica no domínio porque é regra de negócio (o que é "equivalente"), sem I/O: recebe valores simples e devolve texto.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 
@@ -44,6 +42,7 @@ def compute_cache_key(
     ``prompt_sha256`` é o hash dos arquivos do prompt no momento da execução (e não o ``meta.json``), então
     editar um prompt sem criar versão nova também invalida o cache, em vez de devolver saída desatualizada.
     """
+    # Reúne tudo que influencia a resposta para gerar um hash SHA-256 único.
     payload = {
         "profile": profile.model_dump(mode="json"),
         "ticket": normalize_ticket(ticket_text),

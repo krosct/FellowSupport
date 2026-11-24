@@ -1,7 +1,5 @@
 """Testes do schema ``Diagnosis``: formato válido, limites e regras cruzadas (ADR 0004)."""
 
-from __future__ import annotations
-
 import copy
 
 import pytest
@@ -34,7 +32,7 @@ def _valid() -> dict:
 def test_diagnostico_valido_e_sem_campo_de_raciocinio() -> None:
     d = Diagnosis.model_validate(_valid())
     assert d.probable_conclusion.confidence is Confidence.MEDIA
-    # O schema não oferece lugar para cadeia de raciocínio (item 1 do PDF).
+    # O schema não oferece lugar para cadeia de raciocínio.
     assert not any("reason" in nome or "thought" in nome for nome in Diagnosis.model_fields)
 
 
@@ -47,6 +45,7 @@ def test_campo_extra_e_recusado() -> None:
 
 def test_json_schema_fecha_objetos_e_exige_todos_os_campos() -> None:
     """Requisito do modo ``json_schema`` estrito: ``additionalProperties: false`` e tudo obrigatório."""
+    # Verifica em todos os objetos do schema o modo estrito (sem campos extras e tudo obrigatório).
     schema = Diagnosis.model_json_schema()
     objetos = [schema, *schema["$defs"].values()]
     for objeto in objetos:

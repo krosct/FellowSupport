@@ -1,7 +1,7 @@
 Tarefa: formular as perguntas de esclarecimento que o atendimento precisa fazer ao cliente, priorizadas, pedindo somente o que for necessário para avançar.
 
 Estrutura:
-1. Perguntas: de $min_questions a $max_questions, da mais para a menos importante. Cada uma tem a prioridade (1 é a mais importante), a pergunta, o motivo de ela ser necessária e qual hipótese ou dúvida a resposta ajuda a confirmar ou descartar.
+1. Perguntas: de $min_questions a $max_questions, da mais para a menos importante.
 2. Avanço sem respostas: diga se o atendimento consegue avançar sem as respostas e explique em uma frase o que dá para fazer já ou por que as respostas são indispensáveis.
 
 Restrições do canal ($channel): $channel_format

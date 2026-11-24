@@ -1,7 +1,5 @@
 """Testes do provedor fake e dos auxiliares de saída de LLM."""
 
-from __future__ import annotations
-
 import pytest
 from pydantic import BaseModel, ValidationError
 
@@ -11,7 +9,13 @@ from app.domain.errors import ValidationFailed
 from app.domain.flow_render import render_flow
 from app.domain.llm_output import extract_json_object, format_validation_error
 from app.domain.models import (
+    FLOW_MAX_NODES,
+    FLOW_MIN_NODES,
     OUTPUT_SCHEMAS,
+    QUESTIONS_MAX,
+    QUESTIONS_MIN,
+    STEPS_MAX,
+    STEPS_MIN,
     Channel,
     ClarifyingQuestions,
     ContentType,
@@ -19,12 +23,13 @@ from app.domain.models import (
     FlowSummary,
     ResolutionSteps,
 )
-from app.ports.llm import LLMParams
+from app.ports.llm import ChatMessage, LLMParams
 
 PARAMS = LLMParams(model="qualquer/modelo", temperature=0.1, max_tokens=100, structured_mode="json_schema")
 
 
-def _mensagens(ticket: str) -> list[dict]:
+def _mensagens(ticket: str) -> list[ChatMessage]:
+    # Monta par de mensagens mínimo com o texto do ticket delimitado.
     return [
         {"role": "system", "content": "persona"},
         {"role": "user", "content": f"<ticket>\n{ticket}\n</ticket>"},
@@ -61,9 +66,12 @@ def test_fake_das_perguntas_e_dos_passos_respeitam_os_limites() -> None:
     perguntas = ClarifyingQuestions.model_validate(
         FakeLLM().complete(_mensagens("x"), ClarifyingQuestions, PARAMS).parsed
     )
-    assert 3 <= len(perguntas.questions) <= 5
+    assert QUESTIONS_MIN <= len(perguntas.questions) <= QUESTIONS_MAX
     passos = ResolutionSteps.model_validate(FakeLLM().complete(_mensagens("x"), ResolutionSteps, PARAMS).parsed)
+    assert STEPS_MIN <= len(passos.steps) <= STEPS_MAX
     assert all(p.expected_result and p.if_it_fails for p in passos.steps)
+    fluxo = FlowSummary.model_validate(FakeLLM().complete(_mensagens("x"), FlowSummary, PARAMS).parsed)
+    assert FLOW_MIN_NODES <= len(fluxo.nodes) <= FLOW_MAX_NODES
 
 
 def test_fake_e_deterministico_e_cita_o_ticket() -> None:

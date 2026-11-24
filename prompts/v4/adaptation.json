@@ -1,0 +1,17 @@
+{
+  "tech_level": {
+    "leigo": "leigo (linguagem simples do dia a dia, sem jargão técnico; quando citar um recurso, dê um exemplo prático)",
+    "intermediário": "intermediário (termos comuns de sistemas são aceitos; explique brevemente conceitos menos óbvios)",
+    "avançado": "avançado (terminologia técnica direta, logs, códigos de erro e comandos quando aplicável, sem explicar o básico)"
+  },
+  "comm_style": {
+    "direto": "direto (vá direto ao ponto, frases curtas e secas, sem rodeios nem blocos longos)",
+    "detalhado": "detalhado (explique o contexto completo e critérios de verificação, quebrando em parágrafos curtos quando o texto for longo)",
+    "didático": "didático (explique brevemente o porquê de cada orientação ou pergunta em tom acolhedor)"
+  },
+  "channel": {
+    "chat": "chat",
+    "e-mail": "e-mail",
+    "telefone": "telefone"
+  }
+}

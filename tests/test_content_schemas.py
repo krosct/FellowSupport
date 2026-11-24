@@ -1,7 +1,5 @@
 """Testes dos schemas ``ResolutionSteps``, ``ClarifyingQuestions`` e ``FlowSummary`` e das regras de canal."""
 
-from __future__ import annotations
-
 import copy
 
 import pytest
@@ -9,6 +7,8 @@ from pydantic import ValidationError
 
 from app.domain.channel_rules import CHANNEL_FORMAT_RULES, find_channel_violations
 from app.domain.models import (
+    FLOW_MAX_NODES,
+    FLOW_MIN_NODES,
     QUESTIONS_MAX,
     QUESTIONS_MIN,
     STEPS_MAX,
@@ -40,6 +40,7 @@ def _questions(n: int = 3) -> dict:
 
 
 def _flow() -> dict:
+    # Retorna um grafo mínimo válido com decisão e convergência para os testes.
     return {
         "nodes": [
             {"id": "n1", "type": "start", "label": "SMS não chega"},
@@ -61,6 +62,11 @@ def _flow() -> dict:
 
 def test_passos_validos() -> None:
     assert len(ResolutionSteps.model_validate(_steps()).steps) == 3
+
+
+@pytest.mark.parametrize("n", range(STEPS_MIN, STEPS_MAX + 1))
+def test_quantidade_de_passos_aceita(n: int) -> None:
+    assert len(ResolutionSteps.model_validate(_steps(n)).steps) == n
 
 
 @pytest.mark.parametrize("n", [STEPS_MIN - 1, STEPS_MAX + 1])
@@ -105,12 +111,12 @@ def test_passos_recusam_campo_extra() -> None:
 
 
 @pytest.mark.parametrize("n", range(QUESTIONS_MIN, QUESTIONS_MAX + 1))
-def test_de_3_a_5_perguntas_sao_aceitas(n: int) -> None:
+def test_quantidade_de_perguntas_aceita(n: int) -> None:
     assert len(ClarifyingQuestions.model_validate(_questions(n)).questions) == n
 
 
-@pytest.mark.parametrize("n", [0, 2, 6])
-def test_menos_de_3_ou_mais_de_5_perguntas_sao_recusadas(n: int) -> None:
+@pytest.mark.parametrize("n", [0, QUESTIONS_MIN - 1, QUESTIONS_MAX + 1])
+def test_quantidade_de_perguntas_fora_do_limite(n: int) -> None:
     with pytest.raises(ValidationError):
         ClarifyingQuestions.model_validate(_questions(n))
 
@@ -144,7 +150,28 @@ def test_fluxo_valido() -> None:
     assert len(FlowSummary.model_validate(_flow()).nodes) == 4
 
 
+def _flow_linear(n: int) -> dict:
+    # Constrói um fluxo linear com ``n`` nós (start -> ações -> end) para testar os limites de nós.
+    nodes = [{"id": "n1", "type": "start", "label": "Início"}]
+    nodes.extend({"id": f"n{i}", "type": "action", "label": f"Passo {i}"} for i in range(2, n))
+    nodes.append({"id": f"n{n}", "type": "end", "label": "Fim"})
+    edges = [{"source": f"n{i}", "target": f"n{i + 1}", "label": ""} for i in range(1, n)]
+    return {"nodes": nodes, "edges": edges}
+
+
+@pytest.mark.parametrize("n", [FLOW_MIN_NODES, FLOW_MAX_NODES])
+def test_quantidade_de_nos_aceita(n: int) -> None:
+    assert len(FlowSummary.model_validate(_flow_linear(n)).nodes) == n
+
+
+@pytest.mark.parametrize("n", [FLOW_MIN_NODES - 1, FLOW_MAX_NODES + 1])
+def test_quantidade_de_nos_fora_do_limite(n: int) -> None:
+    with pytest.raises(ValidationError):
+        FlowSummary.model_validate(_flow_linear(n))
+
+
 def _mutar(fn) -> dict:
+    # Aplica uma mutação em uma cópia isolada do fluxo válido base.
     data = copy.deepcopy(_flow())
     fn(data)
     return data

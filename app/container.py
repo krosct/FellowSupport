@@ -3,18 +3,25 @@
 API e CLI pedem um ``Container`` pronto e nunca instanciam repositórios nem clientes por conta própria.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from app.adapters.llm.factory import build_llm_client
-from app.adapters.storage.json_files import JsonCacheStore, JsonProfileRepo, JsonRunRepo, JsonTicketRepo
+from app.adapters.storage.event_log import JsonLinesEventLog
+from app.adapters.storage.json_files import (
+    JsonCacheStore,
+    JsonComparisonRepo,
+    JsonProfileRepo,
+    JsonRunRepo,
+    JsonTicketRepo,
+)
 from app.adapters.storage.prompt_files import FilePromptStore
 from app.config import Settings, get_settings
 from app.domain.prompting.engine import PromptBuilder
 from app.domain.prompting.registry import PromptRegistry
 from app.ports.llm import LLMClient
-from app.ports.repositories import ProfileRepo, RunRepo, TicketRepo
+from app.ports.repositories import ComparisonRepo, EditablePromptStore, ProfileStore, RunRepo, TicketStore
+from app.services.comparison import ComparisonContext
+from app.services.evaluation import EvaluationContext
 from app.services.generators import GenerationConfig, GenerationContext
 
 
@@ -23,11 +30,15 @@ class Container:
     """Dependências já ligadas, entregues às camadas de entrada."""
 
     settings: Settings
-    profiles: ProfileRepo
-    tickets: TicketRepo
+    profiles: ProfileStore
+    tickets: TicketStore
     prompts: PromptRegistry
+    prompt_store: EditablePromptStore
     runs: RunRepo
     generation: GenerationContext
+    evaluation: EvaluationContext
+    comparison: ComparisonContext
+    comparisons: ComparisonRepo
 
 
 def build_container(settings: Settings | None = None, *, llm: LLMClient | None = None) -> Container:
@@ -36,11 +47,16 @@ def build_container(settings: Settings | None = None, *, llm: LLMClient | None =
     ``llm`` permite injetar outro cliente (os testes usam um que falha ou devolve saídas roteirizadas); sem ele,
     a fábrica escolhe ``fake`` ou ``openrouter`` conforme ``LLM_PROVIDER``.
     """
+    # Carrega configurações e cria os repositórios de catálogo, prompts e execuções.
     settings = settings or get_settings()
     profiles = JsonProfileRepo(settings.catalog_dir)
     tickets = JsonTicketRepo(settings.catalog_dir)
-    registry = PromptRegistry(FilePromptStore(settings.prompts_dir))
+    prompt_store = FilePromptStore(settings.prompts_dir)
+    registry = PromptRegistry(prompt_store)
     runs = JsonRunRepo(settings.data_dir)
+    # Um único log de eventos para geração, avaliação e comparação (ADR 0043).
+    events = JsonLinesEventLog(settings.log_file, settings.app_timezone)
+    # Monta o contexto principal de geração com cliente LLM, cache e parâmetros.
     generation = GenerationContext(
         llm=llm or build_llm_client(settings),
         prompts=PromptBuilder(registry),
@@ -56,13 +72,28 @@ def build_container(settings: Settings | None = None, *, llm: LLMClient | None =
             max_tokens=settings.llm_max_tokens,
             structured_mode=settings.llm_structured_mode,
             reasoning=settings.llm_reasoning,
-            default_prompt_version=settings.default_prompt_version,
             max_ticket_chars=settings.max_ticket_chars,
             save_prompt_messages=settings.save_prompt_messages,
             timezone=settings.app_timezone,
-            cache_enabled=settings.cache_enabled,
         ),
+        events=events,
     )
+    evaluation = EvaluationContext(runs=runs, timezone=settings.app_timezone, events=events)
+    # Liga o repositório de comparações ao serviço de comparação.
+    comparisons = JsonComparisonRepo(settings.data_dir)
+    comparison = ComparisonContext(
+        runs=runs, comparisons=comparisons, evaluation=evaluation, timezone=settings.app_timezone, events=events
+    )
+    # Entrega todas as dependências conectadas no container imutável.
     return Container(
-        settings=settings, profiles=profiles, tickets=tickets, prompts=registry, runs=runs, generation=generation
+        settings=settings,
+        profiles=profiles,
+        tickets=tickets,
+        prompts=registry,
+        prompt_store=prompt_store,
+        runs=runs,
+        generation=generation,
+        evaluation=evaluation,
+        comparison=comparison,
+        comparisons=comparisons,
     )

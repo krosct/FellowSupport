@@ -1,7 +1,5 @@
 """Testes do registro de versões e do motor de prompts, com versões sintéticas em ``tmp_path``."""
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -9,7 +7,15 @@ import pytest
 
 from app.adapters.storage.prompt_files import FilePromptStore
 from app.domain.errors import NotFound, ValidationFailed
-from app.domain.models import ContentType, CustomerProfile
+from app.domain.models import (
+    DIAGNOSIS_MAX_HYPOTHESES,
+    DIAGNOSIS_MIN_HYPOTHESES,
+    Channel,
+    CommStyle,
+    ContentType,
+    CustomerProfile,
+    TechLevel,
+)
 from app.domain.prompting.engine import MAX_REPAIR_ECHO_CHARS, PromptBuilder
 from app.domain.prompting.registry import PromptRegistry, compute_content_sha256
 
@@ -18,14 +24,17 @@ ADAPTATION = {
     "comm_style": {"direto": "direto", "detalhado": "detalhado", "didático": "didático"},
     "channel": {"chat": "chat", "e-mail": "e-mail", "telefone": "telefone"},
 }
-PERFIL = CustomerProfile(id="p", name="Dona Ana", tech_level="leigo", comm_style="didático", channel="telefone")
+PERFIL = CustomerProfile(
+    id="p", name="Dona Ana", tech_level=TechLevel.LEIGO, comm_style=CommStyle.DIDATICO, channel=Channel.TELEFONE
+)
 
 
 def criar_versao(raiz: Path, nome: str = "v1", **arquivos: str | None) -> Path:
     """Cria ``<raiz>/<nome>`` com arquivos válidos e o ``meta.json``; ``arquivo=None`` omite o arquivo padrão."""
+    # Grava os arquivos da versão sintética e calcula seu content_sha256 real.
     pasta = raiz / nome
     pasta.mkdir(parents=True)
-    padrao = {
+    padrao: dict[str, str | None] = {
         "system.md": "Persona do $product_name.",
         "context.md": "Cliente: $customer_name ($tech_level, $comm_style, $channel)\n<ticket>\n$ticket_text\n</ticket>",
         "diagnosis.md": "Faça de $min_hypotheses a $max_hypotheses hipóteses. Confiança: $confidence_levels.",
@@ -81,9 +90,20 @@ def test_hash_nao_confunde_fronteira_entre_arquivos() -> None:
 def test_versoes_ordenadas_numericamente_e_ignora_outras_pastas(prompts_dir: Path) -> None:
     for nome in ("v10", "v2", "v1"):
         criar_versao(prompts_dir, nome)
-    (prompts_dir / "judge").mkdir()
+    (prompts_dir / "extra").mkdir()
     registry = PromptRegistry(FilePromptStore(prompts_dir))
     assert [v.version for v in registry.versions()] == ["v1", "v2", "v10"]
+
+
+def test_latest_e_a_maior_versao_numericamente(prompts_dir: Path) -> None:
+    for nome in ("v2", "v10", "v1"):
+        criar_versao(prompts_dir, nome)
+    assert PromptRegistry(FilePromptStore(prompts_dir)).latest().version == "v10"
+
+
+def test_latest_sem_versoes_e_not_found(tmp_path: Path) -> None:
+    with pytest.raises(NotFound):
+        PromptRegistry(FilePromptStore(tmp_path / "nao-existe")).latest()
 
 
 def test_sem_pasta_de_prompts_nao_ha_versoes(tmp_path: Path) -> None:
@@ -153,7 +173,8 @@ def test_build_monta_system_e_user_com_perfil_e_ticket(prompts_dir: Path) -> Non
     usuario = msgs[1]["content"]
     assert "Dona Ana (pessoa leiga, didático, telefone)" in usuario  # texto vem do adaptation.json
     assert "<ticket>\nO SMS não chega.\n</ticket>" in usuario
-    assert "de 2 a 4 hipóteses" in usuario  # limites vêm das constantes do schema
+    # Limites vêm das constantes do schema.
+    assert f"de {DIAGNOSIS_MIN_HYPOTHESES} a {DIAGNOSIS_MAX_HYPOTHESES} hipóteses" in usuario
     assert '"baixa", "média", "alta"' in usuario
 
 

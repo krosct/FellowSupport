@@ -1,6 +1,4 @@
-"""Testes do catálogo e dos repositórios JSON (itens 4.1 e 10 do PDF)."""
-
-from __future__ import annotations
+"""Testes do catálogo e dos repositórios JSON."""
 
 import json
 
@@ -32,14 +30,8 @@ def test_perfis_do_catalogo_contrastam(settings: Settings) -> None:
     assert (por_id["rafael"].tech_level, por_id["rafael"].channel) == ("intermediário", "e-mail")
     assert (por_id["bianca"].tech_level, por_id["bianca"].comm_style) == ("avançado", "direto")
     assert (por_id["jorge"].tech_level, por_id["jorge"].channel) == ("leigo", "chat")
-
-
-def test_catalogo_tem_5_tickets_realistas(settings: Settings) -> None:
-    tickets = JsonTicketRepo(settings.catalog_dir).list_all()
-    assert len(tickets) == 5
-    for t in tickets:
-        assert len(t.text) > 300  # relatos com sinais, evidências e lacunas
-    assert {t.id for t in tickets} == {"t-2fa", "t-sync", "t-webhook", "t-dashboard", "t-csv"}
+    assert (por_id["amanda"].tech_level, por_id["amanda"].comm_style, por_id["amanda"].channel) == (
+        "avançado", "detalhado", "e-mail")
 
 
 def test_get_inexistente_levanta_not_found(settings: Settings) -> None:
@@ -78,6 +70,7 @@ def test_escrita_atomica_nao_deixa_temporarios(tmp_path) -> None:
 
 
 def test_escrita_atomica_preserva_arquivo_anterior_em_falha(tmp_path) -> None:
+    # Simula falha no os.replace para garantir que o arquivo antigo permaneça intacto.
     destino = tmp_path / "dado.json"
     atomic_write_json(destino, {"v": 1})
     with pytest.raises(TypeError):

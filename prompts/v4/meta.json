@@ -1,0 +1,29 @@
+{
+  "version": "v4",
+  "based_on": "v3",
+  "description": "Penúltimo ajuste fino: separação de componentes/credenciais distintos, formatação por parágrafos em e-mail vs concisão em chat, proceed_note curto e evidence_against/when_to_escalate estritos.",
+  "created": "2026-11-23",
+  "changes": [
+    {
+      "what": "system.md: proíbe misturar componentes/credenciais distintos (ex.: API e webhook) ou assumir que corrigir um resolve o outro sem confirmar.",
+      "why": "Na v3 (4ae7f7ba0134, 739521e8ce1f, 1ce9804d4cef e e524aa26e7c4), o modelo tratou rotação de HMAC de webhook como se explicasse ou corrigisse 401 invalid_token na API.",
+      "expected_effect": "Mantém diagnóstico, passos e fluxo consistentes diante de pistas paralelas ou enganosas."
+    },
+    {
+      "what": "adaptation.json e diagnosis.md: orienta parágrafos curtos em e-mail detalhado (sem exigir 'texto curto') e concisão rígida sem blocos longos em direto.",
+      "why": "Na v3, customer_summary do Rafael (c3e031ffc9ca) saiu em 1 bloco único de 1627 chars sem quebra de linha, e when_to_escalate da Bianca (1ce9804d4cef) ficou com 403 chars.",
+      "expected_effect": "Melhora legibilidade em e-mail e enxuga blocos longos no chat direto."
+    },
+    {
+      "what": "clarifying_questions.md: exige que proceed_note tenha uma única frase curta (até ~200 caracteres), mesmo em perfis detalhados.",
+      "why": "Na v3 (85108fe06663), proceed_note do Rafael veio com 553 chars em várias orações.",
+      "expected_effect": "Cumpre o formato de resumo de avanço e melhora a clareza."
+    },
+    {
+      "what": "diagnosis.md e resolution_steps.md: exige fato que realmente sustente/enfraqueça em evidence_for/against e limita when_to_escalate a até duas frases curtas.",
+      "why": "Na v3 (e524aa26e7c4), H2 listou 'Plano contratado: Pro' como evidence_against sem valor contra a hipótese, e when_to_escalate em 1ce9804d4cef ficou prolixo.",
+      "expected_effect": "Evita evidências neutras artificiais e deixa o critério de escalonamento mais objetivo."
+    }
+  ],
+  "content_sha256": "f8a2a5875cb1c23ff54f2b0e2c2a01a565b8a2e62c602c761e0293a06ce492df"
+}

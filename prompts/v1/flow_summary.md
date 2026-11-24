@@ -4,7 +4,9 @@ Estrutura: um grafo de $min_nodes a $max_nodes nós e as arestas entre eles.
 - Tipos de nó: "start" (o início, com a queixa do cliente), "action" (uma ação a executar), "decision" (uma pergunta cuja resposta escolhe o caminho) e "end" (um desfecho: resolvido ou escalado).
 - Cada aresta liga um nó de origem a um de destino. Nas arestas que saem de uma decisão, o rótulo nomeia o ramo ("Sim" ou "Não"); nas demais, o rótulo é uma string vazia.
 
-Restrições do canal ($channel): $channel_format Os rótulos dos nós têm no máximo $label_max_chars caracteres.
+Restrições do canal ($channel): $channel_format
+
+Os rótulos dos nós têm no máximo $label_max_chars caracteres.
 
 Formato de saída: responda somente com um objeto JSON, sem texto fora dele, neste formato:
 {

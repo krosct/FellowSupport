@@ -13,8 +13,6 @@ ao modelo (que desalinha). O desenho é uma árvore descendo pela tela:
   ``(volta a [n])``: a proteção evita laço infinito mesmo com um grafo montado sem validação.
 """
 
-from __future__ import annotations
-
 import textwrap
 
 from app.domain.models import FlowEdge, FlowNode, FlowNodeType, FlowSummary
@@ -32,6 +30,7 @@ _START_MARKER = "(INÍCIO) "
 
 def _branch_rank(edge: FlowEdge) -> int:
     """Posição do ramo: Sim (0), demais (1), Não (2). A ordenação é estável, preservando a ordem de entrada."""
+    # Ordena "Sim" primeiro, demais rótulos no meio e "Não" por último.
     label = edge.label.strip().casefold()
     if label in _FIRST_BRANCH:
         return 0
@@ -42,6 +41,7 @@ class _Renderer:
     """Estado de um desenho: nós visitados, numeração e linhas produzidas."""
 
     def __init__(self, flow: FlowSummary) -> None:
+        # Indexa os nós por id e agrupa as arestas que partem de cada nó.
         self._nodes: dict[str, FlowNode] = {node.id: node for node in flow.nodes}
         self._out: dict[str, list[FlowEdge]] = {node.id: [] for node in flow.nodes}
         for edge in flow.edges:
@@ -86,15 +86,18 @@ class _Renderer:
         if node.type is not FlowNodeType.START:
             self._numbers[node_id] = len(self._numbers) + 1
 
+        # Quebra o rótulo na largura máxima mantendo o alinhamento após o marcador.
         marker = self._marker(node)
         wrapped = textwrap.wrap(node.label, width=LABEL_WIDTH) or [node.label]
         self._lines.append(f"{first}{marker}{wrapped[0]}")
         # Linhas de continuação do rótulo alinham sob o início do texto, não sob o marcador.
         self._lines.extend(f"{rest}{' ' * len(marker)}{text}" for text in wrapped[1:])
 
+        # Encerra o ramo se o nó for final ou não tiver saídas.
         outgoing = self._out[node_id]
         if node.type is FlowNodeType.END or not outgoing:
             return
+        # Para decisões, ordena e desenha cada ramo recuado; ações seguem em linha reta.
         here = (*path, node_id)
         if node.type is FlowNodeType.DECISION:
             branches = sorted(outgoing, key=_branch_rank)
@@ -113,6 +116,7 @@ class _Renderer:
 
 def render_flow(flow: FlowSummary) -> str:
     """Fluxograma ASCII do ``flow``. ``ValueError`` se não houver nó ``start`` (grafo montado sem validação)."""
+    # Garante um único nó inicial e dispara o desenho recursivo a partir dele.
     starts = [node for node in flow.nodes if node.type is FlowNodeType.START]
     if len(starts) != 1:
         raise ValueError("o fluxo precisa de exatamente um nó start para ser desenhado")

@@ -1,13 +1,11 @@
 """Modelos do domínio: enums, perfil de cliente, ticket e schemas de saída.
 
-Os valores dos enums são os do PDF (item 4.1), em pt-BR e com acentuação, porque são exibidos ao usuário e
+Os valores dos enums são em pt-BR e com acentuação, porque são exibidos ao usuário e
 inseridos nos prompts. Identificadores e chaves JSON ficam em inglês (ADR 0025).
 """
 
-from __future__ import annotations
-
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -15,19 +13,31 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 PRODUCT_NAME = "NuvemPonto"
 PRODUCT_DESCRIPTION = "um sistema em nuvem de controle de ponto e jornada de trabalho"
 
-# Título dado ao ticket digitado à mão (não vem do catálogo).
-FREE_TICKET_TITLE = "Ticket digitado"
+# Limites do catálogo editável de clientes e tickets (ADR 0037): títulos e nomes cabem numa linha de cartão e o total
+# evita crescimento sem fim dos arquivos numa instalação pública. O limite do texto do ticket é
+# ``Settings.max_ticket_chars``. Os prefixos dos ids gerados seguem os dos exemplos (``t-2fa``).
+TICKET_TITLE_MAX_CHARS = 120
+PROFILE_NAME_MAX_CHARS = 60
+MAX_CATALOG_TICKETS = 100
+MAX_CATALOG_PROFILES = 20
+TICKET_ID_PREFIX = "t-"
+PROFILE_ID_PREFIX = "c-"
 
 
-class _LabeledEnum(StrEnum):
-    """Enum de texto com ``label`` pronto para exibição (primeira letra maiúscula)."""
+class LabeledEnum(StrEnum):
+    """Enum de texto com ``label`` pronto para exibição (primeira letra maiúscula).
+
+    É a base comum de todo enum que a API publica como ``{value, label}``; subclasses podem
+    sobrescrever ``label`` quando o rótulo não deriva do valor.
+    """
 
     @property
     def label(self) -> str:
+        """Texto de exibição do valor."""
         return self.value[:1].upper() + self.value[1:]
 
 
-class TechLevel(_LabeledEnum):
+class TechLevel(LabeledEnum):
     """Nível técnico do cliente."""
 
     LEIGO = "leigo"
@@ -35,7 +45,7 @@ class TechLevel(_LabeledEnum):
     AVANCADO = "avançado"
 
 
-class CommStyle(_LabeledEnum):
+class CommStyle(LabeledEnum):
     """Estilo de comunicação preferido pelo cliente."""
 
     DIRETO = "direto"
@@ -43,7 +53,7 @@ class CommStyle(_LabeledEnum):
     DIDATICO = "didático"
 
 
-class Channel(_LabeledEnum):
+class Channel(LabeledEnum):
     """Canal de atendimento."""
 
     CHAT = "chat"
@@ -51,8 +61,8 @@ class Channel(_LabeledEnum):
     TELEFONE = "telefone"
 
 
-class ContentType(StrEnum):
-    """Os quatro conteúdos que o sistema gera (item 1 do PDF)."""
+class ContentType(LabeledEnum):
+    """Os quatro conteúdos que o sistema gera."""
 
     DIAGNOSIS = "diagnosis"
     RESOLUTION_STEPS = "resolution_steps"
@@ -80,7 +90,7 @@ ALL_OPTION_LABEL = "Todos"
 
 
 class CustomerProfile(BaseModel):
-    """Perfil de cliente (item 4.1 do PDF): quem recebe a resposta e como prefere recebê-la."""
+    """Perfil de cliente: quem recebe a resposta e como prefere recebê-la."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -106,11 +116,11 @@ class Ticket(BaseModel):
 
 # Limites do diagnóstico em um único lugar: o schema os valida e o prompt os recebe como variáveis.
 DIAGNOSIS_MIN_HYPOTHESES = 2
-DIAGNOSIS_MAX_HYPOTHESES = 4
-DIAGNOSIS_MAX_MISSING_INFO = 5
+DIAGNOSIS_MAX_HYPOTHESES = 3
+DIAGNOSIS_MAX_MISSING_INFO = 3
 
 
-class Confidence(_LabeledEnum):
+class Confidence(LabeledEnum):
     """Confiança do modelo na conclusão provável. A ordem de declaração vai da menor para a maior."""
 
     BAIXA = "baixa"
@@ -145,7 +155,7 @@ class MissingInfo(_StrictModel):
 
 
 class Conclusion(_StrictModel):
-    """Hipótese mais provável, com o nível de confiança. Não contém cadeia de raciocínio (item 1 do PDF)."""
+    """Hipótese mais provável, com o nível de confiança. Não contém cadeia de raciocínio."""
 
     summary: str = Field(min_length=1, description="Conclusão provável em uma ou duas frases.")
     hypothesis_id: str = Field(min_length=1, description="Id da hipótese escolhida, igual ao de uma das hipóteses.")
@@ -154,7 +164,7 @@ class Conclusion(_StrictModel):
 
 class Diagnosis(_StrictModel):
     """Diagnóstico estruturado e verificável: hipóteses, evidências, dados faltantes, conclusão e um resumo
-    para o cliente. Deliberadamente sem raciocínio interno do modelo (item 1 do PDF)."""
+    para o cliente. Deliberadamente sem raciocínio interno do modelo."""
 
     hypotheses: list[Hypothesis] = Field(
         min_length=DIAGNOSIS_MIN_HYPOTHESES,
@@ -171,11 +181,12 @@ class Diagnosis(_StrictModel):
     )
 
     @model_validator(mode="after")
-    def _check_references(self) -> Diagnosis:
+    def _check_references(self) -> Self:
         """Garante ids de hipótese únicos e uma conclusão que aponta para uma hipótese existente.
 
         Essas regras cruzadas não cabem no JSON Schema; falhar aqui aciona o reparo com uma mensagem clara.
         """
+        # Garante ids únicos nas hipóteses e referência válida na conclusão.
         ids = [h.id for h in self.hypotheses]
         if len(ids) != len(set(ids)):
             raise ValueError("os ids das hipóteses devem ser únicos")
@@ -187,7 +198,7 @@ class Diagnosis(_StrictModel):
 # --- Passo a passo de resolução -----------------------------------------------------------------------
 # Limites em um único lugar: o schema os valida e o prompt os recebe como variáveis.
 STEPS_MIN = 2
-STEPS_MAX = 8
+STEPS_MAX = 6
 
 
 class ResolutionStep(_StrictModel):
@@ -214,16 +225,17 @@ class ResolutionSteps(_StrictModel):
     closing: str = Field(min_length=1, description="Fechamento curto, com a próxima ação combinada.")
 
     @model_validator(mode="after")
-    def _check_order(self) -> ResolutionSteps:
+    def _check_order(self) -> Self:
         """Exige a numeração 1, 2, 3... na ordem em que os passos aparecem (a interface mostra ``order``)."""
+        # Garante que os passos estejam numerados em sequência a partir de 1.
         if [step.order for step in self.steps] != list(range(1, len(self.steps) + 1)):
             raise ValueError("steps[].order deve ser 1, 2, 3... na ordem em que os passos aparecem")
         return self
 
 
 # --- Perguntas de esclarecimento ----------------------------------------------------------------------
-QUESTIONS_MIN = 3
-QUESTIONS_MAX = 5
+QUESTIONS_MIN = 2
+QUESTIONS_MAX = 4
 
 
 class ClarifyingQuestion(_StrictModel):
@@ -249,15 +261,16 @@ class ClarifyingQuestions(_StrictModel):
     )
 
     @model_validator(mode="after")
-    def _check_priorities(self) -> ClarifyingQuestions:
+    def _check_priorities(self) -> Self:
         """Exige prioridades 1, 2, 3... na ordem em que as perguntas aparecem (a mais importante primeiro)."""
+        # Garante prioridades sequenciais 1..N na ordem em que foram listadas.
         if [q.priority for q in self.questions] != list(range(1, len(self.questions) + 1)):
             raise ValueError("questions[].priority deve ser 1, 2, 3... na ordem em que as perguntas aparecem")
         return self
 
 
 # --- Resumo visual do fluxo (árvore de decisão) -------------------------------------------------------
-FLOW_MIN_NODES = 4
+FLOW_MIN_NODES = 3
 FLOW_MAX_NODES = 14
 FLOW_LABEL_MAX_CHARS = 100
 
@@ -295,10 +308,11 @@ class FlowSummary(_StrictModel):
     edges: list[FlowEdge] = Field(min_length=FLOW_MIN_NODES - 1)
 
     @model_validator(mode="after")
-    def _check_integrity(self) -> FlowSummary:
+    def _check_integrity(self) -> Self:
         """Valida ids únicos, um único ``start``, arestas com extremos existentes, grau de cada tipo de nó,
         alcance a partir do início e ausência de ciclos. Regras cruzadas não cabem no JSON Schema; falhar aqui
         aciona o reparo com a mensagem exata do problema."""
+        # Confere ids únicos, presença de exatamente um nó start e ao menos um end.
         ids = [node.id for node in self.nodes]
         if len(ids) != len(set(ids)):
             raise ValueError("os ids dos nós devem ser únicos")
@@ -310,6 +324,7 @@ class FlowSummary(_StrictModel):
         if not any(n.type is FlowNodeType.END for n in self.nodes):
             raise ValueError("deve haver ao menos um nó end")
 
+        # Mapeia entradas e saídas garantindo extremos existentes e sem auto-laço.
         outgoing: dict[str, list[FlowEdge]] = {node_id: [] for node_id in ids}
         incoming: dict[str, int] = dict.fromkeys(ids, 0)
         for edge in self.edges:
@@ -321,6 +336,7 @@ class FlowSummary(_StrictModel):
             outgoing[edge.source].append(edge)
             incoming[edge.target] += 1
 
+        # Valida grau de entrada/saída por tipo e rótulos distintos nas decisões.
         for node in self.nodes:
             out = outgoing[node.id]
             if node.type is FlowNodeType.START and incoming[node.id]:
@@ -377,9 +393,10 @@ CACHE_KEY_PATTERN = r"[0-9a-f]{64}"
 
 
 class RunTicket(BaseModel):
-    """Ticket como foi usado na execução: ``id`` é ``None`` quando o texto foi digitado à mão."""
+    """Ticket como foi usado na execução: uma cópia do ticket do catálogo naquele momento (editá-lo depois não muda
+    a execução)."""
 
-    id: str | None
+    id: str
     title: str
     text: str
 
@@ -391,6 +408,25 @@ class RunParams(BaseModel):
     max_tokens: int
     structured_mode: str
     reasoning: str = "default"  # controle de raciocínio (ADR 0027); "default" também nos arquivos antigos
+
+
+class LlmCall(BaseModel):
+    """Uma chamada ao LLM dentro da execução (a original e, se houver, a de reparo), para depurar quem atendeu.
+
+    O OpenRouter roteia o mesmo modelo entre vários provedores, e um deles pode se comportar diferente (por exemplo,
+    cortar a resposta abaixo do ``max_tokens``): ``provider_used`` e ``response_id`` permitem achar o culpado e
+    consultar a geração no provedor (ADR 0042).
+    """
+
+    attempt: int = Field(description="1 = chamada original; 2 = reparo.")
+    model_used: str = ""
+    provider_used: str = ""
+    response_id: str = ""
+    finish_reason: str = ""
+    latency_ms: int = 0
+    usage: dict[str, int] = Field(default_factory=dict)
+    json_extracted: bool = Field(description="Se havia um objeto JSON aproveitável no texto.")
+    problem: str | None = Field(default=None, description="Por que a saída foi recusada; None se foi aceita.")
 
 
 class RunError(BaseModel):
@@ -405,8 +441,8 @@ class RunRecord(BaseModel):
     mas nunca entram no cache (ADR 0018).
 
     ``cache_key`` vai em toda execução (inclusive com erro e com o cache desligado), para localizar execuções
-    equivalentes. ``cache_hit`` e ``source_run_id`` marcam o reaproveitamento (ADR 0028). ``evaluation`` e
-    ``llm_evaluation`` são preenchidos na Etapa 4; já fazem parte do contrato para o formato não mudar de versão.
+    equivalentes. ``cache_hit`` e ``source_run_id`` marcam o reaproveitamento (ADR 0028). ``evaluation`` fica vazio
+    até a avaliação manual (ADR 0020).
     """
 
     schema_version: int = RUN_SCHEMA_VERSION
@@ -429,12 +465,12 @@ class RunRecord(BaseModel):
     attempts: int = 1  # chamadas ao LLM: 0 = cache hit; 1 = saiu de primeira; 2 = precisou do reparo
     latency_ms: int = 0
     usage: dict[str, int] = Field(default_factory=dict)
+    llm_calls: list[LlmCall] = Field(default_factory=list)  # detalhe por chamada; vazio no cache hit e nos antigos
     prompt_messages: list[dict[str, str]] = Field(default_factory=list)
     output: dict | None = None
     rendered: str | None = None
     error: RunError | None = None
     evaluation: dict | None = None
-    llm_evaluation: dict | None = None
 
 
 class CacheEntry(BaseModel):
@@ -446,6 +482,24 @@ class CacheEntry(BaseModel):
     cache_key: str
     source_run_id: str
     created_at: str  # ISO 8601 com o fuso de APP_TIMEZONE
+
+
+class CacheConflict(BaseModel):
+    """Uma entrada de cache que o pedido atual substituiria (ADR 0035 e 0036).
+
+    ``run_id`` é a execução que hoje é a origem da chave e ``created_at`` é o momento em que essa entrada foi
+    gravada (ISO 8601 com o fuso de ``APP_TIMEZONE``).
+    """
+
+    content_type: ContentType
+    prompt_version: str
+    run_id: str
+    created_at: str | None = None
+
+    def describe(self) -> str:
+        """Frase curta, em pt-BR, para o terminal e para a mensagem do erro."""
+        when = f", de {self.created_at[:16].replace('T', ' ')}" if self.created_at else ""
+        return f"{self.content_type.label} {self.prompt_version}: origem do cache é a execução {self.run_id}{when}"
 
 
 # Mapa tipo de conteúdo -> schema de saída esperado do LLM.

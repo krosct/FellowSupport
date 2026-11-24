@@ -10,34 +10,29 @@ Cuidados com cota e segredo:
 - a chave vem do ``.env`` e nunca é impressa; sem chave ou com ``LLM_PROVIDER=fake`` o script avisa que o teste
   real está bloqueado e sai com código 2 (use ``--fake`` para ensaiar o script sem rede).
 
-Uso: ``.venv/bin/python scripts/smoke_llm.py [--model ID] [--mode json_schema|json_object|prompt]``
+Uso: ``.venv/bin/python -m scripts.smoke_llm [--model ID] [--mode json_schema|json_object|prompt]``
 """
-
-from __future__ import annotations
 
 import argparse
 import json
 import re
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import get_args
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pydantic import ValidationError
 
-from pydantic import ValidationError  # noqa: E402
-
-from app.adapters.llm.fake import FakeLLM  # noqa: E402
-from app.adapters.llm.openai_compat import OpenAICompatClient  # noqa: E402
-from app.adapters.storage.json_files import JsonProfileRepo, JsonTicketRepo  # noqa: E402
-from app.adapters.storage.prompt_files import FilePromptStore  # noqa: E402
-from app.config import Settings  # noqa: E402
-from app.domain.errors import DomainError  # noqa: E402
-from app.domain.llm_output import format_validation_error  # noqa: E402
-from app.domain.models import ContentType, Diagnosis  # noqa: E402
-from app.domain.prompting.engine import PromptBuilder  # noqa: E402
-from app.domain.prompting.registry import PromptRegistry  # noqa: E402
-from app.ports.llm import LLMParams, ReasoningMode  # noqa: E402
+from app.adapters.llm.fake import FakeLLM
+from app.adapters.llm.openai_compat import OpenAICompatClient
+from app.adapters.storage.json_files import JsonProfileRepo, JsonTicketRepo
+from app.adapters.storage.prompt_files import FilePromptStore
+from app.config import Settings
+from app.domain.errors import DomainError
+from app.domain.llm_output import format_validation_error
+from app.domain.models import ContentType, Diagnosis
+from app.domain.prompting.engine import PromptBuilder
+from app.domain.prompting.registry import PromptRegistry
+from app.ports.llm import LLMParams, ReasoningMode
 
 EXIT_OK, EXIT_FAILED, EXIT_BLOCKED = 0, 1, 2
 
@@ -58,6 +53,7 @@ MIN_PT_SHARE = 0.8
 
 def _strings(value: object) -> list[str]:
     """Todos os textos de um JSON aninhado (valores, não chaves)."""
+    # Percorre dicionários e listas recursivamente para extrair só strings.
     if isinstance(value, str):
         return [value]
     if isinstance(value, dict):
@@ -69,10 +65,12 @@ def _strings(value: object) -> list[str]:
 
 def language_check(output: dict) -> dict:
     """Mede a fração de palavras funcionais em português e a presença de acentos nos textos da saída."""
+    # Junta os textos extraídos e conta palavras funcionais em pt-BR e inglês.
     text = " ".join(_strings(output)).lower()
     words = re.findall(r"[a-zà-ú]+", text)
     pt = sum(w in PT_WORDS for w in words)
     en = sum(w in EN_WORDS for w in words)
+    # Calcula a proporção de português e confere presença de acentos.
     share = pt / (pt + en) if pt + en else 0.0
     return {"words": len(words), "pt_function_words": pt, "en_function_words": en, "pt_share": round(share, 3),
             "has_accents": bool(re.search(r"[à-ú]", text)), "ok": share >= MIN_PT_SHARE}
@@ -80,18 +78,20 @@ def language_check(output: dict) -> dict:
 
 def main() -> int:
     """Executa uma chamada, imprime o relatório e devolve o código de saída."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    # Configura os argumentos opcionais de modelo, modo, perfil, ticket e flags.
+    parser = argparse.ArgumentParser(description=str(__doc__).splitlines()[0])
     parser.add_argument("--model", help="modelo a testar (padrão: LLM_MODEL do .env)")
     parser.add_argument("--mode", choices=["json_schema", "json_object", "prompt"], help="modo estruturado")
     parser.add_argument("--profile", default="marta", help="id do perfil (padrão: marta)")
     parser.add_argument("--ticket", default="t-2fa", help="id do ticket (padrão: t-2fa)")
-    parser.add_argument("--version", help="versão do prompt (padrão: DEFAULT_PROMPT_VERSION)")
+    parser.add_argument("--version", help="versão do prompt (padrão: a mais nova)")
     parser.add_argument("--reasoning", choices=get_args(ReasoningMode), help="raciocínio (padrão: LLM_REASONING)")
     parser.add_argument("--max-tokens", type=int, help="limite de tokens da resposta (padrão: LLM_MAX_TOKENS)")
     parser.add_argument("--retries", type=int, default=0, help="retentativas do SDK em 429/5xx (padrão: 0)")
     parser.add_argument("--fake", action="store_true", help="usa o provedor fake (ensaia o script, sem rede)")
     args = parser.parse_args()
 
+    # Lê o .env e bloqueia o teste real se faltar provedor openrouter ou chave.
     settings = Settings()
     key = settings.openrouter_api_key.get_secret_value()
     if not args.fake and (settings.llm_provider != "openrouter" or not key):
@@ -99,10 +99,11 @@ def main() -> int:
         print("Use --fake para ensaiar o script sem rede.")
         return EXIT_BLOCKED
 
+    # Carrega prompt, perfil e ticket para montar mensagens, parâmetros e cliente.
     model = args.model or settings.llm_model
     mode = args.mode or settings.llm_structured_mode
-    version = args.version or settings.default_prompt_version
     registry = PromptRegistry(FilePromptStore(settings.prompts_dir))
+    version = args.version or registry.latest().version
     profile = JsonProfileRepo(settings.catalog_dir).get(args.profile)
     ticket = JsonTicketRepo(settings.catalog_dir).get(args.ticket)
     messages = PromptBuilder(registry).build(version, ContentType.DIAGNOSIS, profile, ticket.text)
@@ -117,6 +118,7 @@ def main() -> int:
         api_key=key, base_url=settings.llm_base_url, timeout_s=settings.llm_timeout_s, max_retries=args.retries
     )
 
+    # Prepara a pasta var/smoke e o cabeçalho inicial do relatório.
     print(f"Modelo: {model} · modo: {mode} · raciocínio: {params.reasoning} · prompt {version} · "
           f"perfil {profile.id} · ticket {ticket.id}")
     smoke_dir = settings.data_dir / SMOKE_DIR
@@ -127,6 +129,7 @@ def main() -> int:
         "max_tokens": params.max_tokens, "reasoning": params.reasoning, "profile": profile.id,
         "ticket": ticket.id, "fake": args.fake,
     }
+    # Executa uma única chamada ao LLM e registra no log se o provedor falhar.
     try:
         result = client.complete(messages, Diagnosis, params)
     except DomainError as exc:
@@ -135,6 +138,7 @@ def main() -> int:
         print(f"FALHA DO PROVEDOR: {type(exc).__name__}: {exc}")
         return EXIT_FAILED
 
+    # Valida JSON, schema Diagnosis e idioma pt-BR, anotando a chamada em calls.log.
     report.update(model_used=result.model_used, latency_ms=result.latency_ms, usage=result.usage,
                   raw_text=result.text)
     json_ok = result.parsed is not None
@@ -145,11 +149,12 @@ def main() -> int:
             schema_ok, problem = True, ""
         except ValidationError as exc:
             problem = format_validation_error(exc)
-    language = language_check(result.parsed) if json_ok else {"ok": False}
+    language = language_check(result.parsed if result.parsed else {}) if json_ok else {"ok": False}
     report.update(json_ok=json_ok, schema_ok=schema_ok, schema_problem=problem, language=language,
                   outcome="ok" if schema_ok and language["ok"] else "invalid")
     _log_call(smoke_dir, report)
 
+    # Imprime o resultado no terminal, salva o relatório JSON e retorna o código final.
     print(f"Modelo efetivo: {result.model_used} · latência: {result.latency_ms} ms · uso: {result.usage}")
     print(f"JSON válido: {json_ok} · schema válido: {schema_ok} · pt-BR: {language}")
     if problem:
@@ -166,6 +171,7 @@ def main() -> int:
 
 def _log_call(smoke_dir: Path, report: dict) -> None:
     """Anota uma linha por chamada em ``calls.log`` (orçamento de chamadas reais)."""
+    # Não registra execuções simuladas (--fake); só grava chamadas reais em calls.log.
     if report.get("fake"):
         return
     line = (f"{report['timestamp']}\t{report['model']}\t{report['mode']}\treasoning={report['reasoning']}"

@@ -1,20 +1,20 @@
 """Portas de repositório (ADR 0002).
 
 O núcleo depende só destes contratos; o armazenamento concreto (JSON em disco hoje, outro amanhã) fica em
-``adapters/storage``. Etapas seguintes acrescentam o ``ComparisonRepo``.
+``adapters/storage``. ``ComparisonRepo`` guarda as comparações salvas.
 """
 
-from __future__ import annotations
-
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
+from app.domain.comparison import ComparisonRecord
 from app.domain.models import CacheEntry, CustomerProfile, RunRecord, Ticket
 
 
+# Portas do catálogo (perfis e tickets): leitura nos ``*Repo`` e escrita nos ``*Store``.
 class ProfileRepo(Protocol):
-    """Acesso aos perfis de cliente."""
+    """Acesso aos perfis de cliente (leitura; usada pelos geradores)."""
 
     def list_all(self) -> list[CustomerProfile]:
         """Todos os perfis, na ordem do catálogo."""
@@ -25,8 +25,24 @@ class ProfileRepo(Protocol):
         ...
 
 
+class ProfileStore(ProfileRepo, Protocol):
+    """Catálogo de perfis editável: além de ler, cria, edita e remove (ADR 0037)."""
+
+    def add(self, profile: CustomerProfile) -> CustomerProfile:
+        """Grava um perfil novo no fim. Levanta ``ValidationFailed`` se o id já existir ou o limite estourar."""
+        ...
+
+    def update(self, profile: CustomerProfile) -> CustomerProfile:
+        """Troca o perfil de mesmo id. Levanta ``NotFound`` se não existir."""
+        ...
+
+    def remove(self, profile_id: str) -> CustomerProfile:
+        """Remove e devolve o perfil. Levanta ``NotFound`` se não existir."""
+        ...
+
+
 class TicketRepo(Protocol):
-    """Acesso aos tickets de exemplo."""
+    """Acesso aos tickets (leitura; usada pelos geradores)."""
 
     def list_all(self) -> list[Ticket]:
         """Todos os tickets, na ordem do catálogo."""
@@ -34,6 +50,22 @@ class TicketRepo(Protocol):
 
     def get(self, ticket_id: str) -> Ticket:
         """Ticket pelo id. Levanta ``NotFound`` se não existir."""
+        ...
+
+
+class TicketStore(TicketRepo, Protocol):
+    """Catálogo de tickets editável: além de ler, cria, edita e remove (ADR 0037)."""
+
+    def add(self, ticket: Ticket) -> Ticket:
+        """Grava um ticket novo no fim. Levanta ``ValidationFailed`` se o id já existir ou o limite estourar."""
+        ...
+
+    def update(self, ticket: Ticket) -> Ticket:
+        """Troca título e texto do ticket de mesmo id. Levanta ``NotFound`` se não existir."""
+        ...
+
+    def remove(self, ticket_id: str) -> Ticket:
+        """Remove e devolve o ticket. Levanta ``NotFound`` se não existir."""
         ...
 
 
@@ -61,6 +93,19 @@ class PromptStore(Protocol):
         ...
 
 
+class EditablePromptStore(PromptStore, Protocol):
+    """Armazenamento de versões de prompt: cria e remove pastas ``prompts/<versão>/`` (imutáveis)."""
+
+    def create_version(self, version: str, meta: dict, files: Mapping[str, str]) -> None:
+        """Cria a pasta da versão com os arquivos e o ``meta.json``. ``ValidationFailed`` se já existir."""
+        ...
+
+    def delete_version(self, version: str) -> None:
+        """Remove a pasta da versão e todos os seus arquivos. ``NotFound`` se não existir."""
+        ...
+
+
+# Portas de persistência de execuções, caches e comparações.
 @dataclass(frozen=True)
 class StoredRun:
     """Uma execução lida do armazenamento, com o caminho do arquivo (a API e a CLI mostram onde o JSON está)."""
@@ -73,7 +118,11 @@ class RunRepo(Protocol):
     """Persistência das execuções: um arquivo por execução (ADR 0009)."""
 
     def save(self, record: RunRecord) -> str:
-        """Grava a execução de forma atômica e devolve o caminho do arquivo (para exibir ao usuário)."""
+        """Grava a execução de forma atômica e devolve o caminho do arquivo (para exibir ao usuário).
+
+        Regravar um registro com o mesmo ``run_id`` e ``timestamp`` substitui o arquivo (é assim que a avaliação
+        entra na execução), sempre por troca atômica.
+        """
         ...
 
     def get(self, run_id: str) -> StoredRun:
@@ -99,4 +148,28 @@ class CacheStore(Protocol):
 
     def put(self, entry: CacheEntry) -> None:
         """Grava (ou substitui) a entrada de forma atômica."""
+        ...
+
+
+@dataclass(frozen=True)
+class StoredComparison:
+    """Uma comparação lida do armazenamento, com o caminho do arquivo."""
+
+    record: ComparisonRecord
+    saved_path: str
+
+
+class ComparisonRepo(Protocol):
+    """Persistência das comparações: um arquivo por comparação em ``var/comparisons/<id>.json`` (ADR 0031)."""
+
+    def save(self, record: ComparisonRecord) -> str:
+        """Grava a comparação de forma atômica e devolve o caminho do arquivo (para exibir ao usuário)."""
+        ...
+
+    def get(self, comparison_id: str) -> StoredComparison:
+        """Comparação pelo id. Levanta ``NotFound`` se não existir, se o id for malformado ou o arquivo ilegível."""
+        ...
+
+    def list_recent(self) -> list[StoredComparison]:
+        """Todas as comparações, da mais recente para a mais antiga. Arquivos ilegíveis são pulados (com log)."""
         ...

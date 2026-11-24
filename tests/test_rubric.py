@@ -1,11 +1,10 @@
-"""Testes da rubrica fixa (item 5 do PDF)."""
-
-from __future__ import annotations
+"""Testes da rubrica fixa."""
 
 from app.domain import rubric
 
 
 def test_tres_criterios_na_ordem_do_pdf() -> None:
+    # Confere que os critérios da rubrica seguem a ordem e chaves esperadas.
     assert rubric.CRITERIA_KEYS == ("clarity", "customer_fit", "actionability")
 
 
@@ -25,3 +24,7 @@ def test_rubric_as_dict_e_serializavel() -> None:
     data = rubric.rubric_as_dict()
     assert [c["key"] for c in data["criteria"]] == list(rubric.CRITERIA_KEYS)
     assert data["scale"]["labels"]["3"] == "adequado"
+
+
+def test_justificativa_curta_tem_limite_unico_publicado_na_rubrica() -> None:
+    assert rubric.rubric_as_dict()["justification_max_chars"] == rubric.JUSTIFICATION_MAX_CHARS == 500

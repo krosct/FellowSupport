@@ -4,10 +4,9 @@ Responsabilidades, todas escondidas atrás da porta ``LLMClient``:
 - timeout e novas tentativas com backoff (o próprio SDK repete 429 e 5xx até ``max_retries``);
 - os três modos de saída estruturada (ADR 0004): ``json_schema``, ``json_object`` e ``prompt``;
 - medir latência, uso de tokens e o modelo efetivo (``response.model``), que pode diferir do pedido;
+- informar por que o modelo parou (``finish_reason``), o provedor que atendeu e o id da geração (ADR 0042);
 - traduzir os erros do SDK para as exceções do domínio (ADR 0018), sem expor chave nem cabeçalhos.
 """
-
-from __future__ import annotations
 
 import json
 import logging
@@ -18,7 +17,7 @@ from typing import Any
 import openai
 from pydantic import BaseModel
 
-from app.domain.errors import RATE_LIMIT_MESSAGE, InvalidLLMOutput, LLMRateLimited, LLMUnavailable
+from app.domain.errors import RATE_LIMIT_MESSAGE, LLMRateLimited, LLMUnavailable
 from app.domain.llm_output import extract_json_object
 from app.ports.llm import ChatMessage, LLMParams, LLMResult, ReasoningMode, StructuredMode
 
@@ -53,6 +52,7 @@ def _reasoning_body(mode: ReasoningMode) -> dict[str, Any] | None:
 
 def _response_format(schema: type[BaseModel], mode: StructuredMode) -> dict[str, Any] | None:
     """Valor de ``response_format`` para o modo pedido; ``None`` no modo ``prompt`` (sem imposição do provedor)."""
+    # Define response_format conforme o nível de imposição suportado pelo modo.
     if mode == "json_schema":
         return {
             "type": "json_schema",
@@ -71,6 +71,7 @@ def _with_schema_instruction(
     Anexar à primeira mensagem de sistema (em vez de criar outra no fim) evita erro em modelos que aceitam
     ``system`` só na primeira posição.
     """
+    # Copia mensagens e injeta o JSON Schema no system quando o modo não o impõe na API.
     copied: list[ChatMessage] = [{"role": m["role"], "content": m["content"]} for m in messages]
     if mode == "json_schema":
         return copied
@@ -111,6 +112,7 @@ class OpenAICompatClient:
 
     def complete(self, messages: Sequence[ChatMessage], schema: type[BaseModel], params: LLMParams) -> LLMResult:
         """Chama o modelo e devolve texto, JSON extraído, uso, latência e modelo efetivo."""
+        # Monta o corpo da requisição com mensagens, formato de saída e raciocínio.
         request: dict[str, Any] = {
             "model": params.model,
             "messages": _with_schema_instruction(messages, schema, params.structured_mode),
@@ -124,6 +126,7 @@ class OpenAICompatClient:
         if extra_body is not None:
             request["extra_body"] = extra_body  # campo fora do contrato OpenAI: o SDK o mescla ao corpo
 
+        # Chama a API e traduz falhas do SDK para exceções do domínio.
         started = time.perf_counter()
         try:
             response = self._client.chat.completions.create(**request)
@@ -145,6 +148,7 @@ class OpenAICompatClient:
     @staticmethod
     def _to_result(response: Any, latency_ms: int) -> LLMResult:
         """Converte a resposta do SDK em ``LLMResult`` e trata respostas 200 que trazem erro no corpo."""
+        # Verifica se há choices; trata respostas HTTP 200 com erro embutido no JSON.
         choices = getattr(response, "choices", None)
         if not choices:
             # Alguns provedores (OpenRouter) devolvem 200 com {"error": {...}} quando o modelo falha.
@@ -156,6 +160,7 @@ class OpenAICompatClient:
                 raise LLMRateLimited(RATE_LIMIT_MESSAGE)
             raise LLMUnavailable(f"O provedor de LLM não devolveu resposta: {detail}")
 
+        # Extrai texto, JSON e contagem de tokens (incluindo reasoning_tokens se houver).
         choice = choices[0]
         text = (choice.message.content or "").strip()
         parsed = extract_json_object(text)
@@ -171,18 +176,15 @@ class OpenAICompatClient:
             reasoning = getattr(details, "reasoning_tokens", None) or 0
             if reasoning:
                 usage["reasoning_tokens"] = reasoning
-        if choice.finish_reason == "length" and parsed is None:
-            # Cortada pelo limite de tokens e sem JSON aproveitável: o reparo bateria no mesmo limite e gastaria
-            # outra chamada, então falha já com a causa e o remédio. Modelos de raciocínio costumam cair aqui.
-            thinking = usage.get("reasoning_tokens", 0)
-            raise InvalidLLMOutput(
-                f"A resposta foi cortada pelo limite de {usage.get('completion_tokens', 0)} tokens "
-                f"({thinking} gastos em raciocínio) antes de completar o JSON. Aumente LLM_MAX_TOKENS."
-            )
         return LLMResult(
             text=text,
             parsed=parsed,
             usage=usage,
             latency_ms=latency_ms,
             model_used=response.model or "",
+            # A resposta cortada (``length``) não é erro aqui: o serviço decide e registra o gasto (ADR 0042).
+            finish_reason=choice.finish_reason or "",
+            # O OpenRouter informa o provedor que atendeu num campo fora do contrato OpenAI (o SDK o preserva).
+            provider_used=str(getattr(response, "provider", None) or ""),
+            response_id=str(getattr(response, "id", None) or ""),
         )

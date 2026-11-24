@@ -1,7 +1,5 @@
 """Testes de ``POST /api/generate`` e ``GET /api/prompt-versions`` via TestClient (sem rede, ADR 0016)."""
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -13,12 +11,13 @@ from app.config import Settings
 from app.container import build_container
 from app.domain.errors import InvalidLLMOutput, LLMRateLimited, LLMUnavailable, NotFound, ValidationFailed
 from app.domain.models import OUTPUT_SCHEMAS, ContentType, Diagnosis, FlowSummary, ResolutionSteps
-from tests.support import LLMPorSchema, LLMRoteirizado
+from tests.support import LATEST_VERSION, LLMPorSchema, LLMRoteirizado
 
 CORPO = {"profile_id": "marta", "ticket_id": "t-2fa", "content_type": "diagnosis"}
 
 
 def _cliente(settings: Settings, llm=None) -> TestClient:
+    # Cria TestClient isolado com container de teste e sem servir arquivos estáticos.
     return TestClient(create_app(build_container(settings, llm=llm), frontend_dist=None))
 
 
@@ -32,20 +31,11 @@ def test_gera_diagnostico_com_ticket_do_catalogo(settings: Settings) -> None:
     corpo = r.json()
     run = corpo["run"]
     Diagnosis.model_validate(run["output"])
-    assert run["status"] == "ok" and run["prompt_version"] == "v1" and run["provider"] == "fake"
+    assert run["status"] == "ok" and run["prompt_version"] == LATEST_VERSION and run["provider"] == "fake"
     assert run["customer_profile"]["name"] == "Dona Marta"
     [arquivo] = _arquivos(settings)
     assert corpo["saved_path"] == str(arquivo)
     assert json.loads(arquivo.read_text(encoding="utf-8"))["run_id"] == run["run_id"]
-
-
-def test_gera_com_texto_livre(settings: Settings) -> None:
-    r = _cliente(settings).post(
-        "/api/generate", json={"profile_id": "bianca", "ticket_text": "A API devolve 500 desde as 9h."}
-    )
-    assert r.status_code == 200
-    run = r.json()["run"]
-    assert run["ticket"]["id"] is None and run["ticket"]["text"] == "A API devolve 500 desde as 9h."
 
 
 @pytest.mark.parametrize("tipo", [t for t in ContentType])
@@ -64,7 +54,7 @@ def test_tipo_de_conteudo_desconhecido_e_422(settings: Settings) -> None:
 
 
 def test_tipo_padrao_e_diagnostico(settings: Settings) -> None:
-    r = _cliente(settings).post("/api/generate", json={"profile_id": "marta", "ticket_id": "t-csv"})
+    r = _cliente(settings).post("/api/generate", json={"profile_id": "marta", "ticket_id": "t-webhook"})
     assert r.json()["run"]["content_type"] == "diagnosis"
 
 
@@ -74,24 +64,25 @@ def test_tipo_padrao_e_diagnostico(settings: Settings) -> None:
         ({**CORPO, "profile_id": "ninguem"}, 404, "Perfil não encontrado"),
         ({**CORPO, "ticket_id": "t-nada"}, 404, "Ticket não encontrado"),
         ({**CORPO, "prompt_version": "v99"}, 404, "v99"),
-        ({**CORPO, "ticket_text": "x"}, 422, "só um"),
-        ({"profile_id": "marta"}, 422, "só um"),
-        ({"profile_id": "marta", "ticket_text": "   "}, 422, "vazio"),
+        ({"profile_id": "marta"}, 422, "ticket_id"),  # o ticket é sempre um do catálogo
     ],
 )
 def test_erros_de_entrada_viram_http_com_mensagem(settings: Settings, corpo: dict, status: int, trecho: str) -> None:
     r = _cliente(settings).post("/api/generate", json=corpo)
     assert r.status_code == status
-    assert trecho in r.json()["detail"]
+    assert trecho in str(r.json()["detail"])
     assert _arquivos(settings) == []
 
 
 def test_ticket_acima_do_limite_e_422(settings: Settings) -> None:
     pequeno = Settings(
-        _env_file=None, llm_provider="fake", max_ticket_chars=20, catalog_dir=settings.catalog_dir,
+        llm_provider="fake", max_ticket_chars=20, catalog_dir=settings.catalog_dir,
         prompts_dir=settings.prompts_dir, data_dir=settings.data_dir,
     )
-    r = _cliente(pequeno).post("/api/generate", json={"profile_id": "marta", "ticket_text": "x" * 21})
+    from app.services.catalog import create_ticket
+
+    longo = create_ticket(build_container(settings).tickets, "Longo", "x" * 21, settings.max_ticket_chars).id
+    r = _cliente(pequeno).post("/api/generate", json={"profile_id": "marta", "ticket_id": longo})
     assert r.status_code == 422 and "limite é 20" in r.json()["detail"]
 
 
@@ -122,7 +113,7 @@ def test_saida_invalida_apos_reparo_e_502(settings: Settings) -> None:
 
 def test_openrouter_sem_chave_responde_503_com_mensagem_clara(settings: Settings) -> None:
     sem_chave = Settings(
-        _env_file=None, llm_provider="openrouter", catalog_dir=settings.catalog_dir,
+        llm_provider="openrouter", catalog_dir=settings.catalog_dir,
         prompts_dir=settings.prompts_dir, data_dir=settings.data_dir,
     )
     r = _cliente(sem_chave).post("/api/generate", json=CORPO)
@@ -135,23 +126,31 @@ def test_mapa_de_erros_cobre_todas_as_excecoes_do_plano() -> None:
     assert ERROR_STATUS[ValidationFailed] == 422
 
 
-def test_prompt_versions_lista_meta_e_marca_a_padrao(settings: Settings) -> None:
+def test_prompt_versions_lista_meta_e_marca_a_mais_nova_como_padrao(settings: Settings) -> None:
+    from tests.support import LATEST_VERSION, seed_prompt_versions
+
+    seed_prompt_versions(settings.prompts_dir, "v2", "v3")
     r = _cliente(settings).get("/api/prompt-versions")
     assert r.status_code == 200
-    v1, v2 = r.json()
-    assert v1["version"] == "v1" and v1["based_on"] is None and v1["is_default"] is True
+    versoes = r.json()
+    assert len(versoes) >= 3
+    v1 = versoes[0]
+    assert v1["version"] == "v1" and v1["based_on"] is None and v1["is_default"] is False
     assert len(v1["content_sha256"]) == 64
-    assert {"what", "why", "expected_effect"} <= set(v1["changes"][0])
-    # A v2 deriva da v1, não é a padrão e traz o risco de cada mudança (usado na aba Comparar).
-    assert v2["version"] == "v2" and v2["based_on"] == "v1" and v2["is_default"] is False
-    assert all(c["risk"] for c in v2["changes"])
+    assert isinstance(v1["changes"], list)
+    # As versões derivadas registram a base e mudanças (as mudanças alimentam a aba Comparar).
+    assert versoes[1]["version"] == "v2" and versoes[1]["based_on"] == "v1"
+    assert {"what", "why", "expected_effect"} <= set(versoes[1]["changes"][0])
+    # A padrão é sempre a mais nova (ADR 0039): só a última da lista é marcada.
+    assert all(not item["is_default"] for item in versoes[:-1])
+    ultima = versoes[-1]
+    assert ultima["version"] == LATEST_VERSION and ultima["is_default"] is True
 
 
-def test_meta_traz_niveis_de_confianca_e_titulo_do_ticket_livre(settings: Settings) -> None:
+def test_meta_traz_niveis_de_confianca(settings: Settings) -> None:
     meta = _cliente(settings).get("/api/meta").json()
     assert [o["value"] for o in meta["confidence_levels"]] == ["baixa", "média", "alta"]
     assert [o["label"] for o in meta["confidence_levels"]] == ["Baixa", "Média", "Alta"]
-    assert meta["free_ticket_title"] == "Ticket digitado"
 
 
 # --- modo all ---------------------------------------------------------------------------------------
@@ -192,7 +191,7 @@ def test_all_com_todas_as_falhas_responde_com_o_erro_mapeado(settings: Settings)
     ("corpo", "status"),
     [
         ({**CORPO, "profile_id": "ninguem"}, 404),
-        ({**CORPO, "ticket_text": "x"}, 422),
+        ({"profile_id": "marta", "content_type": "all"}, 422),
         ({**CORPO, "prompt_version": "v99"}, 404),
     ],
 )
@@ -227,7 +226,7 @@ def test_use_cache_false_gera_de_novo(settings: Settings) -> None:
     llm = _Contador()
     cliente = _cliente(settings, llm)
     cliente.post("/api/generate", json=CORPO)
-    r = cliente.post("/api/generate", json={**CORPO, "use_cache": False}).json()["run"]
+    r = cliente.post("/api/generate", json={**CORPO, "use_cache": False, "confirm_replace": True}).json()["run"]
     assert r["cache_hit"] is False and len(llm.chamadas) == 2
 
 
@@ -236,6 +235,7 @@ def test_use_cache_invalido_e_422(settings: Settings) -> None:
 
 
 def test_all_cada_tipo_consulta_o_cache_sozinho(settings: Settings) -> None:
+    # Gera só diagnosis primeiro e depois verifica que o modo all reaproveita só ele do cache.
     llm = _Contador()
     cliente = _cliente(settings, llm)
     cliente.post("/api/generate", json=CORPO)  # só o diagnóstico
@@ -245,11 +245,30 @@ def test_all_cada_tipo_consulta_o_cache_sozinho(settings: Settings) -> None:
     assert len(llm.chamadas) == 4
     again = cliente.post("/api/generate", json={**CORPO, "content_type": "all"}).json()["results"]
     assert all(i["run"]["cache_hit"] for i in again) and len(llm.chamadas) == 4
-    sem = cliente.post("/api/generate", json={**CORPO, "content_type": "all", "use_cache": False}).json()["results"]
+    forcado = {**CORPO, "content_type": "all", "use_cache": False, "confirm_replace": True}
+    sem = cliente.post("/api/generate", json=forcado).json()["results"]
     assert not any(i["run"]["cache_hit"] for i in sem) and len(llm.chamadas) == 8
 
 
-def test_meta_informa_se_o_cache_esta_ligado(settings: Settings) -> None:
-    assert _cliente(settings).get("/api/meta").json()["cache_enabled"] is True
-    desligado = settings.model_copy(update={"cache_enabled": False})
-    assert _cliente(desligado).get("/api/meta").json()["cache_enabled"] is False
+def test_sem_cache_sobre_entrada_existente_responde_409_com_todos_os_conflitos(settings: Settings) -> None:
+    llm = _Contador()
+    cliente = _cliente(settings, llm)
+    cliente.post("/api/generate", json={**CORPO, "content_type": "all"})
+    assert len(llm.chamadas) == 4
+    r = cliente.post("/api/generate", json={**CORPO, "content_type": "all", "use_cache": False})
+    corpo = r.json()
+    assert r.status_code == 409 and corpo["code"] == "cache_replace_required"
+    assert {c["content_type"] for c in corpo["conflicts"]} == {
+        "diagnosis", "resolution_steps", "clarifying_questions", "flow_summary",
+    }
+    assert {"prompt_version", "run_id", "created_at"} <= set(corpo["conflicts"][0])
+    assert len(llm.chamadas) == 4  # nada foi gerado
+    # Repetindo o mesmo pedido com a confirmação, a geração acontece e o ponteiro é trocado.
+    forcado = {**CORPO, "content_type": "all", "use_cache": False, "confirm_replace": True}
+    ok = cliente.post("/api/generate", json=forcado)
+    assert ok.status_code == 200 and len(llm.chamadas) == 8
+
+
+def test_sem_cache_sem_entrada_anterior_nao_pede_confirmacao(settings: Settings) -> None:
+    r = _cliente(settings, _Contador()).post("/api/generate", json={**CORPO, "use_cache": False})
+    assert r.status_code == 200

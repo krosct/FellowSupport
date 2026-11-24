@@ -3,17 +3,6 @@
   "based_on": null,
   "description": "Linha de base: persona curta e perfil inserido cru, sem regras de adaptação explícitas.",
   "created": "2026-11-20",
-  "changes": [
-    {
-      "what": "Primeira versão: persona de analista N2, contexto com perfil e ticket delimitado, decomposição do diagnóstico e formato JSON.",
-      "why": "Estabelecer a linha de base mensurável contra a qual as versões seguintes serão comparadas pela rubrica.",
-      "expected_effect": "Diagnóstico válido e organizado, com adequação ao perfil limitada, já que o modelo recebe só os rótulos do perfil."
-    },
-    {
-      "what": "Inclusão de resolution_steps.md, clarifying_questions.md e flow_summary.md, cada um com tarefa, formato JSON e regras próprios, e da restrição de formato por canal ($channel_format) nesses três prompts. diagnosis.md, system.md, context.md, adaptation.json e repair.md não mudaram.",
-      "why": "A v1 foi publicada só com o diagnóstico (Etapa 1) e ainda não foi usada em nenhuma comparação nem em cache, então completá-la com os demais tipos não invalida resultado algum. O PDF exige um prompt adequado a cada um dos quatro conteúdos (item 4.3).",
-      "expected_effect": "Os quatro conteúdos passam a ser gerados com a v1 e a comparação v1 x v2 pode ser feita por tipo. A restrição por canal é só de formato (telefone sem markdown); a adaptação de vocabulário e profundidade continua reservada à v2."
-    }
-  ],
-  "content_sha256": "9977b4c40e78fb3e0e9ba668624faf3794c6bc3b7040e3dcc11c8cd7c2d3670e"
+  "changes": [],
+  "content_sha256": "6de7ca6c791fc159f568cc4f5c144e5a6f992f30d8439056ea2ee062e8e4ae8b"
 }

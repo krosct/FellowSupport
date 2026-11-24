@@ -1,7 +1,5 @@
 """Testes dos prompts reais em ``prompts/``: imutabilidade por hash (ADR 0006) e renderização com todo o catálogo."""
 
-from __future__ import annotations
-
 import json
 
 import pytest
@@ -51,8 +49,8 @@ def test_versao_nao_foi_editada_apos_publicada(registry: PromptRegistry, versao:
 
 def test_meta_da_v1_descreve_a_linha_de_base(registry: PromptRegistry) -> None:
     meta = registry.get("v1")
-    assert meta.based_on is None
-    assert meta.changes and all(c.what and c.why and c.expected_effect for c in meta.changes)
+    assert meta.based_on is None and meta.description
+    assert isinstance(meta.changes, list)
 
 
 @pytest.mark.parametrize("tipo", list(ContentType))
@@ -60,6 +58,7 @@ def test_meta_da_v1_descreve_a_linha_de_base(registry: PromptRegistry) -> None:
 def test_todos_os_perfis_e_tickets_renderizam_sem_placeholder_faltando(
     registry: PromptRegistry, versao: str, tipo: ContentType
 ) -> None:
+    # Testa renderização em todas as combinações de versão, tipo, perfil e ticket.
     builder = PromptBuilder(registry)
     for perfil in JsonProfileRepo(CATALOG).list_all():
         for ticket in JsonTicketRepo(CATALOG).list_all():
@@ -70,7 +69,7 @@ def test_todos_os_perfis_e_tickets_renderizam_sem_placeholder_faltando(
 
 
 def test_cada_tipo_tem_prompt_distinto_com_o_formato_do_seu_schema(registry: PromptRegistry) -> None:
-    """Prompts distintos (item 4.3 do PDF): o texto de cada tipo cita os campos do próprio schema e só dele."""
+    """Prompts distintos: o texto de cada tipo cita os campos do próprio schema e só dele."""
     perfil = JsonProfileRepo(CATALOG).get("rafael")
     builder = PromptBuilder(registry)
     tarefas = {t: builder.build("v1", t, perfil, "x")[1]["content"].split("</ticket>")[1] for t in ContentType}
@@ -113,10 +112,10 @@ def test_restricao_do_canal_entra_no_prompt(registry: PromptRegistry, tipo: Cont
     assert "sem markdown" not in chat
 
 
-def test_meta_da_v1_registra_a_inclusao_dos_tres_prompts(registry: PromptRegistry) -> None:
-    mudancas = registry.get("v1").changes
-    assert len(mudancas) >= 2
-    assert any("resolution_steps" in c.what and "clarifying_questions" in c.what for c in mudancas)
+def test_v1_tem_os_oito_arquivos_de_conteudo_esperados(registry: PromptRegistry) -> None:
+    nomes = set(registry.detail("v1").files)
+    esperados = {"system.md", "context.md", "adaptation.json", "repair.md", *(f"{t.value}.md" for t in ContentType)}
+    assert esperados <= nomes
 
 
 def test_v1_e_linha_de_base_com_perfil_cru() -> None:

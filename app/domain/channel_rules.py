@@ -1,12 +1,10 @@
-"""Restrições de formato por canal de atendimento (item 4.2 do PDF: "restrições da saída").
+"""Restrições de formato por canal de atendimento.
 
 Uma só tabela (SSOT) alimenta duas coisas: o texto de instrução inserido nos prompts (``$channel_format``) e a
 verificação por código da saída. Assim, o que o prompt pede e o que o sistema confere não divergem. São regras
 de **formato** (como o texto é entregue), não de vocabulário ou profundidade: a adaptação ao nível técnico fica
 para as versões de prompt.
 """
-
-from __future__ import annotations
 
 import re
 
@@ -41,6 +39,7 @@ def channel_format_instruction(channel: Channel) -> str:
 
 def _strings(value: object) -> list[str]:
     """Todos os textos de um JSON aninhado (valores, não chaves)."""
+    # Percorre listas e dicionários recursivamente coletando apenas strings.
     if isinstance(value, str):
         return [value]
     if isinstance(value, dict):
@@ -56,6 +55,7 @@ def find_channel_violations(channel: Channel, output: BaseModel) -> str:
     O texto volta ao modelo no reparo (ADR 0004), então diz o que corrigir. Hoje só o telefone é verificável por
     código (sem markdown); as demais regras são orientação do prompt.
     """
+    # Só verifica canais que proíbem markdown e busca marcas proibidas nos textos.
     if channel not in _NO_MARKDOWN_CHANNELS:
         return ""
     for text in _strings(output.model_dump(mode="json")):

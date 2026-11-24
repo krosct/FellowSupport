@@ -1,7 +1,5 @@
 """Testes da chave de cache (ADR 0010 e 0028): muda com qualquer insumo relevante e ignora ruído de formatação."""
 
-from __future__ import annotations
-
 import hashlib
 import json
 import re
@@ -13,7 +11,7 @@ from app.domain.cache_key import compute_cache_key, normalize_ticket
 from app.domain.models import CACHE_KEY_PATTERN, Channel, CommStyle, ContentType, CustomerProfile, TechLevel
 
 PERFIL = CustomerProfile(
-    id="marta", name="Dona Marta", tech_level="leigo", comm_style="didático", channel="telefone"
+    id="marta", name="Dona Marta", tech_level=TechLevel.LEIGO, comm_style=CommStyle.DIDATICO, channel=Channel.TELEFONE
 )
 
 
@@ -34,6 +32,7 @@ class Entrada:
     reasoning: str = "default"
 
     def chave(self) -> str:
+        # Calcula a chave SHA-256 usando todos os campos desta instância.
         return compute_cache_key(**self.__dict__)
 
 

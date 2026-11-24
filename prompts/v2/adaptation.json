@@ -1,17 +1,17 @@
 {
   "tech_level": {
-    "leigo": "leigo. Sem jargão nem siglas; se um termo técnico for inevitável, troque-o por uma analogia do dia a dia. Um conceito por frase.",
-    "intermediário": "intermediário. Pode usar termos técnicos comuns, cada um com uma explicação breve na primeira vez que aparecer.",
-    "avançado": "avançado. Termos precisos, comandos, códigos de erro e trechos de log quando ajudarem; não explique o básico."
+    "leigo": "leigo",
+    "intermediário": "intermediário",
+    "avançado": "avançado"
   },
   "comm_style": {
-    "direto": "direto. O mínimo necessário: vá ao ponto, sem rodeios, contexto extra nem repetição.",
-    "detalhado": "detalhado. Traga o contexto e o porquê de cada informação importante, de forma completa.",
-    "didático": "didático. Explique o porquê de cada passo e, ao fim de cada etapa, ofereça um jeito de checar se o cliente entendeu."
+    "direto": "direto",
+    "detalhado": "detalhado",
+    "didático": "didático"
   },
   "channel": {
-    "chat": "chat. Mensagens curtas, uma ideia por vez.",
-    "e-mail": "e-mail. Saudação no começo, blocos organizados e despedida no fim.",
-    "telefone": "telefone. Frases curtas e faladas, sem markdown; escreva números por extenso quando isso ajudar a leitura em voz alta."
+    "chat": "chat",
+    "e-mail": "e-mail",
+    "telefone": "telefone"
   }
 }

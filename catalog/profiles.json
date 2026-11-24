@@ -26,5 +26,12 @@
     "tech_level": "leigo",
     "comm_style": "direto",
     "channel": "chat"
+  },
+  {
+    "id": "amanda",
+    "name": "Amanda",
+    "tech_level": "avançado",
+    "comm_style": "detalhado",
+    "channel": "e-mail"
   }
 ]

@@ -4,8 +4,6 @@ Ficam no domínio porque são regras sobre o formato da resposta, usadas tanto p
 ``LLMResult.parsed``) quanto pelo serviço (que monta a mensagem de reparo).
 """
 
-from __future__ import annotations
-
 import json
 import re
 from collections.abc import Iterator
@@ -26,6 +24,7 @@ def _top_level_starts(text: str) -> Iterator[int]:
     Só olha o nível zero para não confundir um objeto **interno** de uma resposta truncada com a resposta inteira:
     se o objeto externo nunca fecha, a profundidade não volta a zero e nenhum candidato falso aparece.
     """
+    # Conta profundidade das chaves ignorando strings e emite aberturas de nível zero.
     depth, in_string, escaped = 0, False, False
     for index, char in enumerate(text):
         if depth and in_string:
@@ -54,6 +53,7 @@ def extract_json_object(text: str) -> dict | None:
     chaves soltas no texto antes ou depois do JSON (o corte ingênuo "primeira ``{`` até a última ``}``" falharia
     nesse caso). Resposta truncada, lista ou texto sem objeto devolvem ``None`` e seguem para o reparo.
     """
+    # Primeiro tenta decodificar o texto inteiro ou o conteúdo de cerca markdown.
     candidates = [text.strip()]
     fenced = _FENCE.search(text)
     if fenced:
@@ -65,6 +65,7 @@ def extract_json_object(text: str) -> dict | None:
             continue
         if isinstance(value, dict):
             return value
+    # Se houver texto ao redor, tenta decodificar a partir de cada '{' de nível zero.
     decoder = json.JSONDecoder()
     for start in _top_level_starts(text):
         try:
@@ -81,6 +82,7 @@ def format_validation_error(exc: ValidationError) -> str:
 
     O texto é devolvido ao modelo no reparo (ADR 0004). Omitir o valor evita reenviar conteúdo longo.
     """
+    # Lista até MAX_REPAIR_ERRORS falhas com campo e motivo, resumindo o excedente.
     lines = []
     for error in exc.errors()[:MAX_REPAIR_ERRORS]:
         where = ".".join(str(part) for part in error["loc"]) or "(raiz)"
@@ -89,3 +91,27 @@ def format_validation_error(exc: ValidationError) -> str:
     if extra > 0:
         lines.append(f"- ... e mais {extra} erro(s)")
     return "\n".join(lines)
+
+
+# Razão de parada que o protocolo de chat usa para "atingiu o limite de tokens".
+FINISH_REASON_LENGTH = "length"
+
+
+def truncation_message(*, max_tokens: int, completion_tokens: int, reasoning_tokens: int, provider: str) -> str:
+    """Mensagem do erro de resposta cortada antes de completar o JSON, com a causa certa e o remédio certo.
+
+    Se o corte bateu no limite configurado, o remédio é aumentar ``LLM_MAX_TOKENS``. Se parou **abaixo** dele, quem
+    cortou foi o provedor que atendeu (o OpenRouter roteia o mesmo modelo entre vários): aumentar o limite não
+    resolve, e a mensagem nomeia o provedor para ele poder ser evitado (ADR 0042).
+    """
+    spent = f"{completion_tokens} tokens ({reasoning_tokens} em raciocínio)"
+    if completion_tokens >= max_tokens:
+        return (
+            f"A resposta foi cortada no limite configurado de {max_tokens} tokens, com {spent}, antes de completar "
+            "o JSON. Aumente LLM_MAX_TOKENS."
+        )
+    who = f"O provedor {provider}" if provider else "O provedor que atendeu"
+    return (
+        f"A resposta foi cortada em {spent}, abaixo do limite configurado de {max_tokens}, antes de completar o "
+        f"JSON. {who} impôs um teto menor; aumentar LLM_MAX_TOKENS não resolve. Gere de novo."
+    )
