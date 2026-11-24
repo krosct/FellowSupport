@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { hashFor, parseHash } from "../lib/routes.js";
+import { comparisonsHash, hashFor, parseHash } from "../lib/routes.js";
 
 /**
- * Rota atual a partir do hash da URL, sem biblioteca de rotas. `navigate(tab, runId?)` troca o hash; o evento
+ * Rota atual a partir do hash da URL, sem biblioteca de rotas. `navigate(tab, runId?)` e `navigateComparisons(id?)` trocam o hash; o evento
  * `hashchange` atualiza o estado, então voltar e avançar no navegador também funcionam.
  */
 export function useHashRoute() {
@@ -18,5 +18,10 @@ export function useHashRoute() {
     window.location.hash = hashFor(tab, runId);
   }, []);
 
-  return { route, navigate };
+  // Abre a lista de comparações do Histórico, ou uma comparação.
+  const navigateComparisons = useCallback((comparisonId) => {
+    window.location.hash = comparisonsHash(comparisonId);
+  }, []);
+
+  return { route, navigate, navigateComparisons };
 }

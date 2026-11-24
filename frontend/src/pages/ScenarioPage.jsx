@@ -14,44 +14,53 @@ function resultTitle(items, meta) {
 }
 
 /**
- * Aba Gerar: monta o cenário (perfil + ticket), gera o conteúdo escolhido (ou todos) e mostra o resultado.
+ * Aba Gerar: monta o cenário (cliente + ticket do catálogo), gera o conteúdo escolhido (ou todos) e mostra o resultado.
+ * Clientes e tickets são cadastrados nas abas Cliente e Ticket; aqui só se escolhe.
  * O catálogo já chega carregado (`catalog.status === "ready"`): quem o carrega é o `App`.
  */
 export default function ScenarioPage({ catalog }) {
-  const { meta, profiles, tickets } = catalog;
+  const { meta, profiles, tickets, versions } = catalog;
   const [profileId, setProfileId] = useState(null);
   const [ticketId, setTicketId] = useState(null);
-  const [mode, setMode] = useState("sample");
-  const [freeText, setFreeText] = useState("");
   const [contentType, setContentType] = useState(null);
+  const [promptVersion, setPromptVersion] = useState(null);
   const [useCache, setUseCache] = useState(true);
   const generation = useGeneration();
   const resultRef = useRef(null);
 
-  // Seleciona o primeiro perfil e ticket assim que o catálogo chega, para a tela nunca abrir vazia.
+  // O perfil e o ticket escolhidos precisam existir: no início, ou depois de removê-los na outra aba, passa para o
+  // primeiro da lista (ou fica sem escolha se a lista esvaziou).
   useEffect(() => {
-    if (profiles.length && profileId === null) setProfileId(profiles[0].id);
-    if (tickets.length && ticketId === null) setTicketId(tickets[0].id);
-  }, [profiles, tickets, profileId, ticketId]);
+    if (!profiles.some((item) => item.id === profileId)) setProfileId(profiles[0]?.id ?? null);
+  }, [profiles, profileId]);
+
+  useEffect(() => {
+    if (!tickets.some((item) => item.id === ticketId)) setTicketId(tickets[0]?.id ?? null);
+  }, [tickets, ticketId]);
 
   // O primeiro tipo de /api/meta (o diagnóstico) é o padrão do seletor.
   useEffect(() => {
     if (meta && contentType === null) setContentType(meta.content_types[0].value);
   }, [meta, contentType]);
 
+  // A versão padrão (a que vem marcada em /api/prompt-versions) é a escolha inicial; se a escolhida sumir, volta a ela.
+  useEffect(() => {
+    if (versions.some((item) => item.version === promptVersion)) return;
+    const fallback = versions.find((item) => item.is_default) ?? versions.at(-1);
+    setPromptVersion(fallback?.version ?? null);
+  }, [versions, promptVersion]);
+
   const profile = profiles.find((item) => item.id === profileId);
   const ticket = tickets.find((item) => item.id === ticketId);
-  const ticketTitle = mode === "sample" ? ticket?.title : freeText.trim() ? meta?.free_ticket_title : "";
-  const ready = Boolean(profile) && (mode === "sample" ? Boolean(ticket) : freeText.trim().length > 0);
+  const ready = Boolean(profile) && Boolean(ticket);
 
-  // Ticket do catálogo ou texto livre: a API aceita exatamente um dos dois.
   const handleGenerate = () => {
-    const source = mode === "sample" ? { ticket_id: ticketId } : { ticket_text: freeText.trim() };
     generation.run({
       profile_id: profileId,
+      ticket_id: ticketId,
       content_type: contentType,
-      use_cache: meta.cache_enabled && useCache,
-      ...source,
+      prompt_version: promptVersion,
+      use_cache: useCache,
     });
   };
 
@@ -67,30 +76,23 @@ export default function ScenarioPage({ catalog }) {
           <Section step={1} title="Perfil do cliente" hint="Quem vai ler a resposta e como prefere recebê-la.">
             <ProfilePicker profiles={profiles} enums={meta.enums} value={profileId} onChange={setProfileId} />
           </Section>
-          <Section step={2} title="Ticket" hint="Escolha um exemplo ou digite o seu.">
-            <TicketPicker
-              tickets={tickets}
-              mode={mode}
-              onModeChange={setMode}
-              ticketId={ticketId}
-              onTicketChange={setTicketId}
-              freeText={freeText}
-              onFreeTextChange={setFreeText}
-              maxChars={meta.limits.max_ticket_chars}
-            />
+          <Section step={2} title="Ticket" hint="Escolha o problema relatado pelo cliente.">
+            <TicketPicker tickets={tickets} ticketId={ticketId} onTicketChange={setTicketId} />
           </Section>
         </div>
         <ScenarioSummary
           profile={profile}
           enums={meta.enums}
-          ticketTitle={ticketTitle}
+          ticketTitle={ticket?.title}
           contentTypes={meta.content_types}
           allOption={meta.all_option}
           contentType={contentType ?? ""}
           onContentTypeChange={setContentType}
+          versions={versions}
+          promptVersion={promptVersion ?? ""}
+          onPromptVersionChange={setPromptVersion}
           useCache={useCache}
           onUseCacheChange={setUseCache}
-          cacheAvailable={meta.cache_enabled}
           ready={ready}
           loading={generation.status === "loading"}
           onGenerate={handleGenerate}

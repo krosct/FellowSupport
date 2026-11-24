@@ -49,12 +49,19 @@
   --fs-shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 4px 12px rgb(16 24 40 / 5%);
   --fs-focus: 0 0 0 3px rgb(37 99 235 / 35%);
 
-  /* Ajusta o Pico à marca */
+  --pico-border-radius: 0.5rem;
+}
+
+/* Ajusta o Pico à marca no tema claro. O Pico define a cor primária em `:root:not([data-theme="dark"])` (mais
+   específico que `:root`), então o ajuste precisa do mesmo seletor para valer: com `:root` o botão e os links
+   ficavam no ciano padrão do Pico. */
+:root:not([data-theme="dark"]) {
   --pico-primary: var(--fs-accent);
   --pico-primary-background: var(--fs-accent);
+  --pico-primary-hover: #1d4ed8;
   --pico-primary-hover-background: #1d4ed8;
   --pico-primary-underline: rgb(37 99 235 / 50%);
-  --pico-border-radius: 0.5rem;
+  --pico-primary-focus: rgb(37 99 235 / 35%);
 }
 
 /* Escuro: segue o sistema, a menos que o tema claro seja forçado */
@@ -94,6 +101,8 @@
     --pico-primary: var(--fs-accent);
     --pico-primary-background: #2f5fd0;
     --pico-primary-hover-background: #3b6fe6;
+    --pico-primary-hover: #9bbcff;
+    --pico-primary-focus: rgb(107 155 255 / 45%);
   }
 }
 
@@ -131,10 +140,55 @@ body {
 
 .app-header-inner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--fs-gap);
   padding-block: 1rem;
+}
+
+/* Botão de provedor e modelo no cabeçalho: abre a janela de chaves da sessão. */
+.header-llm-btn {
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  background: var(--fs-badge-neutral-bg);
+  color: var(--fs-badge-neutral-fg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.header-llm-btn:hover {
+  border-color: var(--fs-accent);
+  background: var(--fs-accent-soft);
+  color: var(--fs-accent);
+}
+
+.header-llm-btn:focus-visible {
+  box-shadow: var(--fs-focus);
+}
+
+.header-llm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.35;
+}
+
+.header-llm-model {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.header-llm-keys {
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: var(--fs-accent);
 }
 
 /* Abas do app (navegação por hash) abaixo da marca */
@@ -308,6 +362,9 @@ label.option-card {
   border: 1px solid var(--fs-border);
   border-radius: 999px;
   background: var(--fs-bg);
+  /* O Pico desenha um anel em volta do grupo todo quando um botão recebe foco, inclusive por clique; o foco por
+     teclado já é marcado em cada item (`.segmented-item:focus-visible`). */
+  --pico-group-box-shadow-focus-with-button: 0 0 0 0 transparent;
 }
 
 .segmented-item {
@@ -328,6 +385,23 @@ label.option-card {
 .segmented-item[aria-pressed="true"] {
   background: var(--fs-accent);
   color: var(--fs-accent-contrast);
+}
+
+/* Seis abas não cabem em uma só linha em telas estreitas: quebram em duas linhas limpas sem estourar a largura. */
+@media (max-width: 540px) {
+  .app-nav .segmented {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    border-radius: var(--fs-radius);
+  }
+
+  .app-nav .segmented-item {
+    flex: 1 1 30%;
+    padding: 0.35rem 0.35rem;
+    font-size: 0.82rem;
+    text-align: center;
+  }
 }
 
 /* O Pico zera o foco de botões dentro de [role="group"] (especificidade 0,3,0); este seletor (0,4,0) o restaura. */
@@ -354,17 +428,246 @@ label.option-card {
   line-height: 1.6;
 }
 
-.free-ticket {
-  display: block;
+.entity-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-gap);
 }
 
-.free-ticket textarea {
-  margin-bottom: 0.25rem;
+.form-field {
+  display: block;
+  margin: 0;
+}
+
+.form-field input,
+.form-field textarea {
+  margin-bottom: 0;
+}
+
+.form-field textarea {
   resize: vertical;
+}
+
+/* Botões do formulário de cadastro (Adicionar/Editar e Cancelar edição) */
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.form-actions button {
+  width: auto;
+  margin: 0;
+}
+
+/* Telas de CRUD (abas Cliente e Ticket): lista e formulário lado a lado, empilhados em telas estreitas */
+.crud-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  padding-bottom: 3rem;
+}
+
+.crud-form {
+  position: sticky;
+  top: 1rem;
+}
+
+.crud-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crud-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  background: var(--fs-surface);
+}
+
+.crud-item[data-editing="true"] {
+  border-color: var(--fs-accent);
+  background: var(--fs-accent-soft);
+}
+
+.crud-item[data-source="true"] {
+  border-color: var(--fs-accent);
+  box-shadow: inset 3px 0 0 var(--fs-accent);
+}
+
+.crud-item-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.prompt-crud-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+}
+
+.prompt-crud-layout .crud-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.prompt-crud-layout .crud-item-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.prompt-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.prompt-files-block,
+.prompt-changes-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.prompt-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.prompt-section-head .summary-label {
+  margin: 0;
+}
+
+.prompt-small-btn {
+  width: auto;
+  margin: 0;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.82rem;
+}
+
+.prompt-file-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.prompt-file-tab {
+  width: auto;
+  margin: 0;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--fs-border);
+  border-radius: 999px;
+  background: var(--fs-bg);
+  color: var(--fs-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.prompt-file-tab:hover {
+  border-color: var(--fs-accent);
+  color: var(--fs-accent);
+}
+
+.prompt-file-tab[data-active="true"] {
+  border-color: var(--fs-accent);
+  background: var(--fs-accent);
+  color: var(--fs-accent-contrast);
+}
+
+.prompt-file-tab[data-empty="true"] {
+  border-color: var(--fs-against);
+}
+
+.prompt-file-tab:focus-visible {
+  box-shadow: var(--fs-focus);
+}
+
+.prompt-file-editor textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.prompt-change-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  background: var(--fs-bg);
+}
+
+.crud-item-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.crud-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.crud-item-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.crud-item-actions button {
+  width: auto;
+  margin: 0;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.875rem;
+}
+
+@media (max-width: 900px) {
+  .crud-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .crud-form {
+    position: static;
+  }
+
+  .crud-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Ação destrutiva: vermelho do tema (usado na confirmação da janela modal). */
+button.danger {
+  --pico-background-color: var(--fs-error-fg);
+  --pico-border-color: var(--fs-error-fg);
+  --pico-color: var(--fs-error-bg);
+  --pico-hover-background-color: var(--fs-error-fg);
+  --pico-hover-border-color: var(--fs-error-fg);
+  --pico-focus-color: var(--fs-error-fg);
 }
 
 .counter {
   display: block;
+  margin-top: 0.4rem;
+  margin-bottom: 0;
   text-align: right;
   color: var(--fs-muted);
 }
@@ -480,6 +783,16 @@ label.option-card {
   background: var(--fs-chosen-bg);
 }
 
+/* O Pico trata `article > header` como cabeçalho de card (margem negativa, fundo e linha embaixo), e o `padding` do
+   card é menor que o dele: o cabeçalho passava por cima da borda de cima. Aqui ele volta a ser uma linha comum. */
+.hypothesis > .hypothesis-head {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
 .hypothesis-head {
   display: flex;
   flex-wrap: wrap;
@@ -504,6 +817,12 @@ label.option-card {
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* O Pico põe `list-style: square` direto nos `li`, então `list-style: none` na lista não basta: sem esta regra, cada
+   item das listas do app ganhava um quadradinho ao lado do próprio marcador. */
+:where(ul, ol)[class] > li {
+  list-style: none;
 }
 
 .bullet-list,
@@ -605,7 +924,8 @@ label.option-card {
   margin: 0;
 }
 
-.select-field select {
+.select-field select,
+.select-field input {
   margin: 0;
 }
 
@@ -629,6 +949,16 @@ label.option-card {
 }
 
 .checkbox-field input[type="checkbox"]:focus-visible {
+  box-shadow: var(--fs-focus);
+}
+
+/* Campos de texto, textarea e select: o Pico desenha só um anel de 1 px (e azul-escuro no tema escuro), pouco visível.
+   Aqui eles usam o mesmo anel de 3 px dos demais controles, nos dois temas. O anel do Pico é uma transição de
+   0,2 s: quem mede o estilo calculado logo após o foco vê zero, então espere a transição terminar. */
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--fs-accent);
   box-shadow: var(--fs-focus);
 }
 
@@ -828,8 +1158,34 @@ label.option-card {
 }
 
 .filters-clear:focus-visible,
-.back-button:focus-visible {
+.back-button:focus-visible,
+.pagination-controls button:focus-visible {
   box-shadow: var(--fs-focus);
+}
+
+/* Paginação do histórico (execuções e comparações): total, Anterior/Próxima e itens por página */
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pagination-info {
+  margin: 0;
+}
+
+.pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.5rem;
+}
+
+.pagination-controls button {
+  margin: 0;
+  width: auto;
 }
 
 .back-button {
@@ -966,4 +1322,336 @@ label.option-card {
     min-width: 0;
     flex-basis: 100%;
   }
+}
+
+/* Comparar: ações */
+.compare-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* Status da avaliação: verde quando completa, vermelho quando faltam notas */
+.compare-actions .compare-status {
+  font-weight: 600;
+  color: var(--fs-against);
+}
+
+.compare-actions .compare-status[data-complete="true"] {
+  color: var(--fs-for);
+}
+
+.compare-actions button {
+  margin: 0;
+  width: auto;
+}
+
+.compare-actions button:focus-visible {
+  box-shadow: var(--fs-focus);
+}
+
+/* O que mudou na versão (meta.json): resumo de uma linha e detalhe ao abrir */
+.version-changes {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  background: var(--fs-bg);
+}
+
+.version-changes > summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.version-changes summary:focus-visible {
+  box-shadow: var(--fs-focus);
+  border-radius: 0.25rem;
+}
+
+.change-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change-list li {
+  margin: 0;
+  padding: 0;
+}
+
+.change {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--fs-accent);
+  background: var(--fs-surface);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.change > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+/* A seta do Pico é um float depois do texto; com o texto em bloco (line-clamp) ela caía para baixo, fora do cartão.
+   No flex ela fica na mesma linha, centrada na vertical, e o texto ocupa o resto. */
+.change > summary::after {
+  float: none;
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.change > summary .change-what {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Fechado, cada mudança ocupa duas linhas; aberta, mostra o texto inteiro */
+.change:not([open]) .change-what {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.change dl {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+}
+
+.change dt {
+  margin-top: 0.4rem;
+  color: var(--fs-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.change dd {
+  margin: 0.1rem 0 0;
+}
+
+/* Carrossel das saídas (Comparar): 2 colunas por vez (1 em tela estreita) e, com mais versões, setas laterais em ciclo
+   infinito. As colunas ficam numa faixa que desliza uma posição por giro; a seta acompanha a rolagem (sticky). */
+.carousel {
+  --carousel-gap: 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.carousel[data-infinite="true"] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.carousel-caption {
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: center;
+}
+
+/* Janela: esconde só o que passa dos lados (clip não prende a rolagem vertical); a folga evita cortar a sombra dos cards. */
+.carousel-viewport {
+  min-width: 0;
+  padding-inline: 0.25rem;
+  margin-inline: -0.25rem;
+  overflow-x: clip;
+}
+
+.carousel-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc(
+    (100% - (var(--carousel-visible) - 1) * var(--carousel-gap)) / var(--carousel-visible)
+  );
+  gap: var(--carousel-gap);
+  align-items: start;
+  /* Uma posição = largura de uma coluna + o espaço entre colunas (percentual da própria faixa, que tem a largura da janela). */
+  transform: translateX(
+    calc(var(--carousel-offset, 0) * -1 * (100% + var(--carousel-gap)) / var(--carousel-visible))
+  );
+}
+
+.carousel-track[data-running="true"] {
+  transition: transform var(--carousel-slide-ms, 380ms) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.carousel-arrow {
+  position: sticky;
+  top: calc(50vh - 1.5rem);
+  display: grid;
+  place-items: center;
+  align-self: start;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--fs-surface);
+}
+
+.carousel-arrow:focus-visible {
+  box-shadow: var(--fs-focus);
+}
+
+@media (max-width: 480px) {
+  .carousel-arrow {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+}
+
+/* Aba Histórico (lista e detalhes): respiro no fim da página, igual às outras abas */
+.history-page {
+  padding-bottom: 3rem;
+}
+
+.compare-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+  background: var(--fs-surface);
+}
+
+/* Só os títulos da própria coluna ("Prompt vN" e "Sua avaliação"). Com seletor de descendente, a regra zerava também
+   a margem dos títulos do diagnóstico (Hipóteses, A favor, Contra) e eles ficavam colados no conteúdo. */
+.compare-col > h3,
+.compare-col > .stack > h4 {
+  margin: 0;
+}
+
+/* Rubrica: critério com nota (botões) e justificativa curta */
+.rubric-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rubric-criterion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--fs-border);
+  border-radius: var(--fs-radius);
+}
+
+.rubric-criterion legend {
+  margin: 0;
+  padding: 0 0.25rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.rubric-criterion input[type="text"] {
+  margin: 0;
+}
+
+/* Nota em cima e o rótulo da escala logo abaixo, centralizado. */
+.rubric-score {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+
+.rubric-score-caption {
+  text-align: center;
+  font-weight: 700;
+}
+
+.rubric-score .segmented {
+  align-self: auto;
+}
+
+.compare-conclusion {
+  display: block;
+  margin: 0;
+}
+
+.compare-conclusion textarea {
+  margin: 0;
+  resize: vertical;
+}
+
+/* Avaliação gravada (só leitura) */
+.evaluation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.evaluation-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.evaluation-list .summary-label {
+  min-width: 9rem;
+  margin: 0;
+}
+
+.evaluation-why {
+  flex: 1 1 14rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Janela de confirmação (<dialog> do Pico; o fundo escurecido é do próprio <dialog>); usada por ConfirmDialog */
+dialog > article {
+  max-width: 34rem;
+}
+
+dialog > article .replace-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0 0 var(--pico-spacing);
+  padding: 0;
+  list-style: none;
+}
+
+dialog > article .replace-list > li {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+}
+
+dialog > article > footer,
+dialog > article .dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+dialog > article > footer button,
+dialog > article .dialog-actions button {
+  width: auto;
+  margin: 0;
 }

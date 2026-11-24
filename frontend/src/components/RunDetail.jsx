@@ -44,7 +44,7 @@ export default function RunDetail({ runId, meta, onBack }) {
       </div>
       <Section id="history-detail" title={item ? labelOf(meta.content_types, item.content_type) : "Execução"}>
         {!item && <p aria-busy="true">Carregando...</p>}
-        {item && <RunResult item={item} confidenceLevels={meta.confidence_levels} />}
+        {item && <RunResult item={item} confidenceLevels={meta.confidence_levels} rubric={meta.rubric} contentTypes={meta.content_types} />}
       </Section>
     </div>
   );
