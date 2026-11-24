@@ -108,12 +108,12 @@ jobs:
     name: Deploy em produção
     needs: [backend, frontend, audit, run]
     # Habilite com a REPOSITORY variable DEPLOY_ENABLED=true (o if do job não lê variables do environment).
-    # Os segredos e variáveis ficam no environment "vars".
+    # Os segredos e variáveis ficam no environment "production".
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
       && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-24.04
-    environment: vars
+    environment: production
     concurrency:
       group: deploy-production
       cancel-in-progress: false
