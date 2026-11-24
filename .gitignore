@@ -1,8 +1,9 @@
 # Segredos: nunca versionar
 .env
 
-# Dados de execução (execuções, cache, comparações)
+# Dados de execução (execuções, cache, comparações) e log de eventos
 var/
+fellowsupport.log
 
 # Python
 .venv/
@@ -25,5 +26,6 @@ frontend/.vite/
 .vscode/
 .DS_Store
 
-# Material do desafio (PDF do enunciado não é redistribuído no repositório)
+# Material do desafio
 Desafio_Tecnico_Estagio_IA_Engenharia_de_Prompt.pdf
+AGENTS.md
