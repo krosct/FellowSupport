@@ -1,0 +1,159 @@
+# Integração e entrega contínua (CI/CD): lint, testes, build, auditoria, smoke test e deploy via devkit.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pull requests novos cancelam o anterior; execuções na main ficam em fila para nunca interromper um deploy.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Garante que nenhuma etapa de CI/smoke test chame o modelo real.
+  LLM_PROVIDER: fake
+
+jobs:
+  backend:
+    name: Back-end (ruff e pytest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Instalar dependências (Python 3.12)
+        run: uv venv .venv --python 3.12 && uv pip install --python .venv/bin/python -r requirements-dev.txt
+      - name: Lint
+        run: .venv/bin/ruff check .
+      - name: Testes
+        run: .venv/bin/pytest
+
+  frontend:
+    name: Front-end (build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-node@249970729cb0ef3589644e289645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+      - name: Build
+        run: npm run build
+
+  audit:
+    name: Auditoria de dependências
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Auditar dependências Python
+        run: uvx pip-audit -r requirements.txt
+      - uses: actions/setup-node@249970729cb0ef3589644e289645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Auditar dependências do front-end
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+  run:
+    name: Smoke test local (DEV do deploy.conf)
+    needs: [backend, frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: actions/setup-node@249970729cb0ef3589644e289645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build do front-end
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: Subir a aplicação
+        run: |
+          bash -c "$(sed -n 's/^DEV="\(.*\)"$/\1/p' deploy.conf)" > run.log 2>&1 &
+          for _ in $(seq 1 180); do
+            curl -fsS http://127.0.0.1:9713/healthz && exit 0
+            sleep 1
+          done
+          cat run.log
+          exit 1
+      - name: Smoke test
+        run: |
+          curl -fsS http://127.0.0.1:9713/ | grep -q '<title>FellowSupport</title>'
+          curl -fsS http://127.0.0.1:9713/api/meta | grep -q '"default_prompt_version"'
+          curl -fsS http://127.0.0.1:9713/api/profiles | grep -q '"id"'
+      - if: failure()
+        run: cat run.log
+
+  deploy:
+    name: Deploy em produção
+    needs: [backend, frontend, audit, run]
+    # Habilite com a REPOSITORY variable DEPLOY_ENABLED=true (o if do job não lê variables do environment).
+    # Os segredos e variáveis ficam no environment "vars".
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    environment: vars
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      # BUILD do deploy.conf roda no runner: o servidor não precisa de Node.
+      - uses: actions/setup-node@249970729cb0ef3589644e289645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: krosct/devkit@v1.4.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          user: ${{ secrets.DEPLOY_USER }}
+          port: ${{ secrets.DEPLOY_PORT || vars.DEPLOY_PORT || '22' }}
+          ssh-key: ${{ secrets.DEPLOY_SSH_KEY }}
+          known-hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          path: ${{ secrets.DEPLOY_PATH || vars.DEPLOY_PATH }}
+          domain: ${{ secrets.DEPLOY_SITE_ADDRESS || vars.DEPLOY_SITE_ADDRESS }}
+          origin-cert: ${{ secrets.DEPLOY_ORIGIN_CERT }}
+          origin-key: ${{ secrets.DEPLOY_ORIGIN_KEY }}
+          preserve: ${{ secrets.DEPLOY_PRESERVE || vars.DEPLOY_PRESERVE }}
+          # Configurações do app (.env no servidor), cada uma vinda de secret ou variable DEPLOY_<CHAVE>.
+          # Se vazia/não definida, é removida do .env do servidor e o app usa o padrão do Settings.
+          env: |
+            ADMIN_API_KEY=${{ secrets.DEPLOY_ADMIN_API_KEY }}
+            OPENROUTER_API_KEY=${{ secrets.DEPLOY_OPENROUTER_API_KEY }}
+            LLM_PROVIDER=${{ secrets.DEPLOY_LLM_PROVIDER || vars.DEPLOY_LLM_PROVIDER }}
+            LLM_BASE_URL=${{ secrets.DEPLOY_LLM_BASE_URL || vars.DEPLOY_LLM_BASE_URL }}
+            LLM_MODEL=${{ secrets.DEPLOY_LLM_MODEL || vars.DEPLOY_LLM_MODEL }}
+            LLM_TEMPERATURE=${{ secrets.DEPLOY_LLM_TEMPERATURE || vars.DEPLOY_LLM_TEMPERATURE }}
+            LLM_MAX_TOKENS=${{ secrets.DEPLOY_LLM_MAX_TOKENS || vars.DEPLOY_LLM_MAX_TOKENS }}
+            LLM_TIMEOUT_S=${{ secrets.DEPLOY_LLM_TIMEOUT_S || vars.DEPLOY_LLM_TIMEOUT_S }}
+            LLM_MAX_RETRIES=${{ secrets.DEPLOY_LLM_MAX_RETRIES || vars.DEPLOY_LLM_MAX_RETRIES }}
+            LLM_STRUCTURED_MODE=${{ secrets.DEPLOY_LLM_STRUCTURED_MODE || vars.DEPLOY_LLM_STRUCTURED_MODE }}
+            LLM_REASONING=${{ secrets.DEPLOY_LLM_REASONING || vars.DEPLOY_LLM_REASONING }}
+            SAVE_PROMPT_MESSAGES=${{ secrets.DEPLOY_SAVE_PROMPT_MESSAGES || vars.DEPLOY_SAVE_PROMPT_MESSAGES }}
+            MAX_TICKET_CHARS=${{ secrets.DEPLOY_MAX_TICKET_CHARS || vars.DEPLOY_MAX_TICKET_CHARS }}
+            APP_TIMEZONE=${{ secrets.DEPLOY_APP_TIMEZONE || vars.DEPLOY_APP_TIMEZONE }}
+            RATE_LIMIT_PER_MIN=${{ secrets.DEPLOY_RATE_LIMIT_PER_MIN || vars.DEPLOY_RATE_LIMIT_PER_MIN }}
+            LOG_LEVEL=${{ secrets.DEPLOY_LOG_LEVEL || vars.DEPLOY_LOG_LEVEL }}
+            LOG_FILE=${{ secrets.DEPLOY_LOG_FILE || vars.DEPLOY_LOG_FILE }}
